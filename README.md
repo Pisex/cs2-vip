@@ -1,5 +1,7 @@
 # VIP system
 My Discord server - https://discord.com/invite/g798xERK5Y
+
+List of modules - [click](https://github.com/Pisex/cs2-vip-modules)
 # TODO List
 - [ ]  ...
 
