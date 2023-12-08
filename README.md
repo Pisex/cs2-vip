@@ -19,9 +19,10 @@ Client command:
 
 The plugin includes the following console commands:
 - `vip_reload` - reload vip config with groups
-- `vip_remove <userid|nickname|accountountid>` - take away vip access from the player
+- `vip_remove <userid|nickname|accountid>` - take away vip access from the player
 - `vip_give <userid|nickname|accountid> <time_second> <group>` - give vip access to a player
 
 ## Configuration
 - Databases file: `addons/configs/databases.cfg`
+- Groups file: `addons/configs/vip/groups.ini`
 - Translation file: `addons/translations/vip.phrases.txt`
