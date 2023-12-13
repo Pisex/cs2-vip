@@ -1089,7 +1089,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.0.0";
+	return "1.0.1.1";
 }
 
 const char* VIP::GetDate()
