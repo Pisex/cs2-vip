@@ -64,18 +64,21 @@ void VIP::OnClientCommand(CPlayerSlot slot, const CCommand &args)
 
 KeyValues* GetGroupKV(int iSlot)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(iSlot + 1)));
 	if (!pController)
-		return NULL;
+		return nullptr;
+
 	uint32 m_steamID = pController->m_steamID();
-	if(m_steamID == 0)
-		return NULL;
+	if (m_steamID == 0)
+		return nullptr;
+
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
-		return NULL;
+		return nullptr;
 
 	VipPlayer& player = vipGroup->second;
-	if(player.TimeEnd <= std::time(0) && player.TimeEnd != 0) return NULL;
+	if (player.TimeEnd <= std::time(0) && player.TimeEnd != 0)
+		return nullptr;
 
 	auto vipPlayer = g_VipGroups[player.sGroup];
 	return vipPlayer;
@@ -543,6 +546,7 @@ void VIP::OnDispatchConCommand(ConCommandHandle cmdHandle, const CCommandContext
 					else
 					{
 						int iItem = hMenuPlayer.iList*5+iButton-1;
+						if(hMenu.hItems.size() <= iItem) return;
 						const char* szFunction = hMenu.hItems[iItem].sBack.c_str();
 						const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iCommandPlayerSlot.Get(), szFunction);
 						if(strlen(sCookie) == 0 || std::stoi(sCookie) != 0)
@@ -910,14 +914,11 @@ bool VIPApi::VIP_IsValidVIPGroup(const char* szGroup)
 
 void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid)
 {
-	CCSPlayerController *pPlayerController = nullptr;
-	
 	if (slot.Get() == -1)
-		return;
+    	return;
 
-	pPlayerController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(slot.Get() + 1));
-
-	if(!pPlayerController)
+	CCSPlayerController* pPlayerController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(slot.Get() + 1)));
+	if (!pPlayerController)
 		return;
 
 	uint32 m_steamID = pPlayerController->m_steamID();
@@ -937,10 +938,11 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 			if(player.TimeEnd > std::time(0) || player.TimeEnd == 0)
 			{
 				g_SMAPI->Format(szQuery, sizeof(szQuery), "UPDATE vip_users SET name = '%s', lastvisit = %i  WHERE account_id = '%d' AND `sid` = %i;", g_pConnection->Escape(engine->GetClientConVarValue(slot, "name")).c_str(), std::time(0), m_steamID, m_iServerID);
-				if(player.TimeEnd == 0) ClientPrint(pPlayerController, 3, g_pVIPCore->VIP_GetTranslate("WelcomePerm"), pPlayerController->m_iszPlayerName());
+				if(player.TimeEnd == 0) 
+					ClientPrint(pPlayerController, 3, g_pVIPCore->VIP_GetTranslate("WelcomePerm"), pPlayerController->m_iszPlayerName());
 				else
 				{
-					time_t currentTime_t = (time_t)player.TimeEnd;
+					time_t currentTime_t = static_cast<time_t>(player.TimeEnd);
 					char buffer[80];
 					std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&currentTime_t));
 					ClientPrint(pPlayerController, 3, g_pVIPCore->VIP_GetTranslate("Welcome"), pPlayerController->m_iszPlayerName(), buffer);
@@ -956,61 +958,70 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 
 void VIP::OnClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID)
 {
-	if(xuid == 0) return;
-	
+	if (xuid == 0)
+    	return;
+
 	g_pVIPApi->Call_VIP_OnClientDisconnect(slot.Get(), g_pVIPCore->VIP_IsClientVIP(slot.Get()));
 
-	CCSPlayerController* pPlayerController =  (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(slot.Get() + 1));
+	CCSPlayerController* pPlayerController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(slot.Get() + 1)));
+	if (!pPlayerController)
+		return;
+
 	uint32 m_steamID = pPlayerController->m_steamID();
-	if (!pPlayerController || m_steamID == 0)
+	if (m_steamID == 0)
 		return;
+
 	auto vipGroup = g_VipPlayer.find(m_steamID);
-	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(slot.Get()))
-		return;
-	g_VipPlayer.erase(vipGroup);
 	auto PlayerMenu = g_MenuPlayer.find(m_steamID);
-	if (PlayerMenu == g_MenuPlayer.end() || !engine->IsClientFullyAuthenticated(slot.Get()))
-		return;
-	g_MenuPlayer.erase(PlayerMenu);
+
+	if (vipGroup == g_VipPlayer.end() || PlayerMenu == g_MenuPlayer.end() || !engine->IsClientFullyAuthenticated(slot.Get())) {
+		if (vipGroup != g_VipPlayer.end())
+			g_VipPlayer.erase(vipGroup);
+		
+		if (PlayerMenu != g_MenuPlayer.end())
+			g_MenuPlayer.erase(PlayerMenu);
+	}
 }
 
 void OnVIPCommand(const char* szContent, int iSlot)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(iSlot + 1)));
 	if (!pController)
 		return;
+	
 	uint32 m_steamID = pController->m_steamID();
-	if(m_steamID == 0)
+	if (m_steamID == 0)
 		return;
 
 	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
-	{
+	if (!Group) {
 		ClientPrint(pController, 3, g_pVIPCore->VIP_GetTranslate("NotAccess"));
 		return;
 	}
+
 	MenuPlayer& pPlayer = g_MenuPlayer[m_steamID];
-	if(pPlayer.bEnabled)
-	{
+	if (pPlayer.bEnabled) {
 		ClientPrint(pController, 3, g_pVIPCore->VIP_GetTranslate("MenuIsAlreadyOpen"));
 		return;
 	}
+
 	CCommand arg;
 	arg.Tokenize(szContent);
-	Menus someMenu;
-	Menus& hMenu = someMenu;
 
+	Menus hMenu;
 	hMenu.szTitle = std::string(g_pVIPCore->VIP_GetTranslate("MenuTitle"));
-	char sBuff[64];
+	char sBuff[128];
+
 	FOR_EACH_VALUE(Group, pKey)
 	{
 		const char *pszParam = pKey->GetName();
 		const char *pszValue = pKey->GetString(nullptr, nullptr);
 		const char *szTrans = g_pVIPCore->VIP_GetTranslate(pszParam);
 		const char *szValue = g_pVIPCore->VIP_GetClientFeatureString(iSlot, pszParam); 
+
 		g_SMAPI->Format(sBuff, sizeof(sBuff), "%s [%s]", strlen(szTrans)?szTrans:pszParam, strlen(szValue)?containsOnlyDigits(szValue) && std::stoi(szValue) == 1?g_pVIPCore->VIP_GetTranslate("On"):pszValue:g_pVIPCore->VIP_GetTranslate("Off"));
-		Items someItem;
-		Items& hItem = someItem;
+		
+		Items hItem;
 		hItem.iType = 1;
 		hItem.sBack = std::string(pszParam);
 		hItem.sText = std::string(sBuff);
@@ -1025,48 +1036,48 @@ void OnVIPCommand(const char* szContent, int iSlot)
 
 void VIP::AllPluginsLoaded()
 {
-	char error[64];
+	char error[64] = { 0 };
 	int ret;
-	g_pMysqlClient = (IMySQLClient *)g_SMAPI->MetaFactory(MYSQLMM_INTERFACE, &ret, NULL);
+	g_pMysqlClient = static_cast<IMySQLClient*>(g_SMAPI->MetaFactory(MYSQLMM_INTERFACE, &ret, nullptr));
 
-	if (ret == META_IFACE_FAILED)
-	{
-		V_strncpy(error, "Missing MYSQL plugin", 64);
+	if (ret == META_IFACE_FAILED) {
+		V_strncpy(error, "Missing MYSQL plugin", sizeof(error));
 		return;
 	}
-	KeyValues* pKVConfig = new KeyValues("Databases");
-	
-	if (!pKVConfig->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg"))
-	{
-		V_strncpy(error, "Failed to load vip config 'addons/config/databases.cfg'", 64);
+
+	std::unique_ptr<KeyValues> pKVConfig(new KeyValues("Databases"));
+
+	if (!pKVConfig->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg")) {
+		V_strncpy(error, "Failed to load vip config 'addons/config/databases.cfg'", sizeof(error));
 		return;
 	}
-	pKVConfig = pKVConfig->FindKey("vip", false);
-	if(!pKVConfig)
-	{
-		V_strncpy(error, "No databases.cfg 'vip'", 64);
+
+	KeyValues* pKVConfigVIP = pKVConfig->FindKey("vip", false);
+	if (!pKVConfigVIP) {
+		V_strncpy(error, "No databases.cfg 'vip'", sizeof(error));
 		return;
 	}
-	MySQLConnectionInfo info;
-	info.host = pKVConfig->GetString("host", nullptr);
-	info.user = pKVConfig->GetString("user", nullptr);
-	info.pass = pKVConfig->GetString("pass", nullptr);
-	info.database = pKVConfig->GetString("database", nullptr);
-	info.port = pKVConfig->GetInt("port", 3306);
+
+	MySQLConnectionInfo info {
+		pKVConfigVIP->GetString("host", nullptr),
+		pKVConfigVIP->GetString("user", nullptr),
+		pKVConfigVIP->GetString("pass", nullptr),
+		pKVConfigVIP->GetString("database", nullptr),
+		pKVConfigVIP->GetInt("port", 3306)
+	};
+
 	g_pConnection = g_pMysqlClient->CreateMySQLConnection(info);
 
-	g_pConnection->Connect([this](bool connect)
-	{
-		if (!connect)
-		{
+	g_pConnection->Connect([this](bool connect) {
+		if (!connect) {
 			META_CONPRINT("Failed to connect the mysql database\n");
 		} else {
-			g_pConnection->Query("CREATE TABLE IF NOT EXISTS `vip_users` (`account_id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL default 'unknown', `lastvisit` INTEGER UNSIGNED NOT NULL default 0, `sid` INTEGER UNSIGNED NOT NULL, `group` VARCHAR(64) NOT NULL, `expires` INTEGER UNSIGNED NOT NULL default 0);",[this](IMySQLQuery* test){});
-
+			g_pConnection->Query("CREATE TABLE IF NOT EXISTS `vip_users` (`account_id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL default 'unknown', `lastvisit` INTEGER UNSIGNED NOT NULL default 0, `sid` INTEGER UNSIGNED NOT NULL, `group` VARCHAR(64) NOT NULL, `expires` INTEGER UNSIGNED NOT NULL default 0);", [this](IMySQLQuery* test) {});
 			g_pVIPApi->Call_VIP_OnVIPLoaded();
 			g_pVIPApi->SetReady(true);
 		}
 	});
+
 	g_pVIPCore->VIP_RegCommand("vip", OnVIPCommand);
 }
 

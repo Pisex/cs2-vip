@@ -237,6 +237,11 @@ struct MenuPlayer
     int iMenu;
 };
 
+// struct Cookie
+// {
+// 	std::map<std::string, std::string> hCookie;
+// };
+
 const std::string colors_text[] = {
 	"{DEFAULT}",
 	"{RED}",
