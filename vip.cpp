@@ -1045,14 +1045,14 @@ void VIP::AllPluginsLoaded()
 		return;
 	}
 
-	std::unique_ptr<KeyValues> pKVConfig(new KeyValues("Databases"));
+	KeyValues* pKVConfigVIP = new KeyValues("Databases");
 
-	if (!pKVConfig->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg")) {
+	if (!pKVConfigVIP->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg")) {
 		V_strncpy(error, "Failed to load vip config 'addons/config/databases.cfg'", sizeof(error));
 		return;
 	}
 
-	KeyValues* pKVConfigVIP = pKVConfig->FindKey("vip", false);
+	pKVConfigVIP = pKVConfigVIP->FindKey("vip", false);
 	if (!pKVConfigVIP) {
 		V_strncpy(error, "No databases.cfg 'vip'", sizeof(error));
 		return;
