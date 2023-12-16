@@ -507,67 +507,70 @@ void VIP::OnDispatchConCommand(ConCommandHandle cmdHandle, const CCommandContext
 			// pszMessage[V_strlen(pszMessage) - 1] = 0;
 			CCommand arg;
 			arg.Tokenize(args.ArgS() + 2);
-
-			if(containsOnlyDigits(std::string(arg[0])))
+			if(arg[0][0])
 			{
-				MenuPlayer& hMenuPlayer = g_MenuPlayer[pController->m_steamID()];
-				Menus& hMenu = g_Menus[hMenuPlayer.iMenu];
-				if(hMenuPlayer.bEnabled)
+				if(containsOnlyDigits(std::string(arg[0])))
 				{
-					int iButton = std::stoi(arg[0]);
-					if(iButton == 9 && hMenu.bExit)
+					MenuPlayer& hMenuPlayer = g_MenuPlayer[pController->m_steamID()];
+					Menus& hMenu = g_Menus[hMenuPlayer.iMenu];
+					if(hMenuPlayer.bEnabled)
 					{
-						hMenuPlayer.iList = 0;
-						hMenuPlayer.bEnabled = false;
-						g_Menus.Remove(hMenuPlayer.iMenu);
-						for (size_t i = 0; i < 8; i++)
+						int iButton = std::stoi(arg[0]);
+						if(iButton == 9 && hMenu.bExit)
 						{
-							ClientPrint(pController, 5, " \x08-\x01");
+							hMenuPlayer.iList = 0;
+							hMenuPlayer.bEnabled = false;
+							g_Menus.Remove(hMenuPlayer.iMenu);
+							for (size_t i = 0; i < 8; i++)
+							{
+								ClientPrint(pController, 5, " \x08-\x01");
+							}
 						}
-					}
-					else if(iButton == 8)
-					{
-						int iItems = size(hMenu.hItems) / 5;
-						if (size(hMenu.hItems) % 5 > 0) iItems++;
-						if(iItems > hMenuPlayer.iList+1)
+						else if(iButton == 8)
 						{
-							hMenuPlayer.iList++;
-							DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+							int iItems = size(hMenu.hItems) / 5;
+							if (size(hMenu.hItems) % 5 > 0) iItems++;
+							if(iItems > hMenuPlayer.iList+1)
+							{
+								hMenuPlayer.iList++;
+								DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+							}
 						}
-					}
-					else if(iButton == 7)
-					{
-						if(hMenuPlayer.iList != 0)
+						else if(iButton == 7)
 						{
-							hMenuPlayer.iList--;
-							DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+							if(hMenuPlayer.iList != 0)
+							{
+								hMenuPlayer.iList--;
+								DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+							}
 						}
-					}
-					else
-					{
-						int iItem = hMenuPlayer.iList*5+iButton-1;
-						if(hMenu.hItems.size() <= iItem) return;
-						const char* szFunction = hMenu.hItems[iItem].sBack.c_str();
-						const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iCommandPlayerSlot.Get(), szFunction);
-						if(strlen(sCookie) == 0 || std::stoi(sCookie) != 0)
-							g_pVIPCore->VIP_SetClientCookie(iCommandPlayerSlot.Get(), szFunction, "0");
 						else
-							g_pVIPCore->VIP_SetClientCookie(iCommandPlayerSlot.Get(), szFunction, "1");
-						char sBuff[64];
-						const char* pszValue = g_pVIPCore->VIP_GetClientFeatureString(iCommandPlayerSlot.Get(), szFunction);
-						const char *szTrans = g_pVIPCore->VIP_GetTranslate(szFunction);
-						g_SMAPI->Format(sBuff, sizeof(sBuff), "%s [%s]", strlen(szTrans)?szTrans:szFunction, strlen(pszValue)?containsOnlyDigits(pszValue) && std::stoi(pszValue) == 1?g_pVIPCore->VIP_GetTranslate("On"):pszValue:g_pVIPCore->VIP_GetTranslate("Off"));
-						hMenu.hItems[iItem].sText = std::string(sBuff);
-						DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+						{
+							int iItem = hMenuPlayer.iList*5+iButton-1;
+							if(hMenu.hItems.size() <= iItem) return;
+							const char* szFunction = hMenu.hItems[iItem].sBack.c_str();
+							const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iCommandPlayerSlot.Get(), szFunction);
+							if(strlen(sCookie) == 0 || std::stoi(sCookie) != 0)
+								g_pVIPCore->VIP_SetClientCookie(iCommandPlayerSlot.Get(), szFunction, "0");
+							else
+								g_pVIPCore->VIP_SetClientCookie(iCommandPlayerSlot.Get(), szFunction, "1");
+							char sBuff[64];
+							const char* pszValue = g_pVIPCore->VIP_GetClientFeatureString(iCommandPlayerSlot.Get(), szFunction);
+							const char *szTrans = g_pVIPCore->VIP_GetTranslate(szFunction);
+							g_SMAPI->Format(sBuff, sizeof(sBuff), "%s [%s]", strlen(szTrans)?szTrans:szFunction, strlen(pszValue)?containsOnlyDigits(pszValue) && std::stoi(pszValue) == 1?g_pVIPCore->VIP_GetTranslate("On"):pszValue:g_pVIPCore->VIP_GetTranslate("Off"));
+							hMenu.hItems[iItem].sText = std::string(sBuff);
+							DisplayPlayerMenu(pController, iCommandPlayerSlot.Get());
+						}
 					}
+					else SH_CALL(g_pCVar, &ICvar::DispatchConCommand)(cmdHandle, ctx, args);
 				}
-				else SH_CALL(g_pCVar, &ICvar::DispatchConCommand)(cmdHandle, ctx, args);
+				else
+				{
+					SH_CALL(g_pCVar, &ICvar::DispatchConCommand)(cmdHandle, ctx, args);
+					g_pVIPApi->FindAndCallCommand(arg[0], pszMessage, iCommandPlayerSlot.Get());
+				}
 			}
-			else
-			{
-				SH_CALL(g_pCVar, &ICvar::DispatchConCommand)(cmdHandle, ctx, args);
-				g_pVIPApi->FindAndCallCommand(arg[0], pszMessage, iCommandPlayerSlot.Get());
-			}
+			else SH_CALL(g_pCVar, &ICvar::DispatchConCommand)(cmdHandle, ctx, args);
 
 			RETURN_META(MRES_SUPERCEDE);
 		}
@@ -874,7 +877,7 @@ float VIPApi::VIP_GetClientFeatureFloat(int iSlot, const char* szFeature)
 		return 1.f;
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || std::stoi(sCookie) != 0)
-		return Group->GetBool(szFeature, 1.f);
+		return Group->GetFloat(szFeature, 1.f);
 	return 1.f;
 }
 

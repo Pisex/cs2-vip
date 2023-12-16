@@ -3,10 +3,10 @@
 #include <baseentity.h>
 #include "schemasystem.h"
 
-inline CEntityInstance* UTIL_FindEntityByClassname(CEntityInstance* pStart, const char* name)
+inline CEntityInstance* UTIL_FindEntityByClassname(const char* name)
 {
 	extern CEntitySystem* g_pEntitySystem;
-	CEntityIdentity* pEntity = pStart ? pStart->m_pEntity->m_pNext : g_pEntitySystem->m_EntityList.m_pFirstActiveEntity;
+	CEntityIdentity* pEntity = g_pEntitySystem->m_EntityList.m_pFirstActiveEntity;
 
 	for (; pEntity; pEntity = pEntity->m_pNext)
 	{
