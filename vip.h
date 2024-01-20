@@ -24,6 +24,7 @@
 #include "sdk/module.h"
 #include "include/mysql_mm.h"
 #include "include/vip.h"
+#include "include/menus.h"
 #include <map>
 #include <ctime>
 #include <chrono>
@@ -35,7 +36,6 @@ class VIP final : public ISmmPlugin, public IMetamodListener
 public:
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late);
 	bool Unload(char* error, size_t maxlen);
-	void NextFrame(std::function<void()> fn);
 	bool LoadVips(char* error, size_t maxlen);
     bool LoadVIPData(char* error, size_t maxlen);
 	void AllPluginsLoaded();
@@ -51,37 +51,26 @@ private:
 	const char* GetLogTag();
 
 private: // Hooks
-    void OnClientCommand(CPlayerSlot slot, const CCommand &args);
-	bool OnFireEvent(IGameEvent* pEvent, bool bDontBroadcast);
 	void StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
 	void GameFrame(bool simulating, bool bFirstTick, bool bLastTick);
 	void OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid);
 	void OnClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID);
-    void OnDispatchConCommand(ConCommandHandle cmd, const CCommandContext& ctx, const CCommand& args);
-	
 	int g_iLastTime;
-
-	std::deque<std::function<void()>> m_nextFrame;
 };
 
 class VIPApi : public IVIPApi {
 	bool bReady;
     std::vector<ReadyCallbackFunc> vipOnVIPLoadeds;
     std::vector<SpawnCallbackFunc> vipOnPlayerSpawn;
-    std::vector<EventCallbackFunc> vipOnFireEvent;
     std::vector<ClientLoadedOrDisconnectCallbackFunc> vipOnClientLoaded;
     std::vector<ClientLoadedOrDisconnectCallbackFunc> vipOnClientDisconnect;
     std::vector<VIPAddCallbackFunc> vipOnVIPClientAdded;
     std::vector<VIPRemoveCallbackFunc> vipOnVIPClientRemoved;
-    std::map<std::string, VIPCommandCallbackFunc> vipCommand;
     bool VIP_IsVIPLoaded() override {
 		return bReady;
 	}
 	bool VIP_IsClientVIP(int iSlot);
 	int VIP_GetClientAccessTime(int iSlot);
-
-    void VIP_PrintToChat(int Slot, int hud_dest, const char *msg, ...);
-    void VIP_PrintToChatAll(int hud_dest, const char *msg, ...);
 
 	int VIP_GetClientFeatureInt(int iSlot, const char* szFeature);
 	bool VIP_GetClientFeatureBool(int iSlot, const char* szFeature);
@@ -100,9 +89,17 @@ class VIPApi : public IVIPApi {
 
     const char *VIP_GetTranslate(const char* phrase);
 
+    void VIP_PrintToCenter(int iSlot, const char* msg, ...);
+
     bool VIP_SetClientCookie(int iSlot, const char* sCookieName, const char* sData);
     const char *VIP_GetClientCookie(int iSlot, const char* sCookieName);
 	
+    void VIP_RegisterFeature(const char*			    szFeature,
+								VIP_ValueType			eValType,
+								VIP_FeatureType			eType,
+								ItemSelectableCallback	Select_callback,
+								ItemTogglableCallback	Togglable_callback,
+                                ItemDisplayCallback		Item_display_callback);
 
 	//iReason: 1 - Expired, 2 - VIP_RemoveClientVIP
 	void VIP_OnVIPClientRemoved(VIPRemoveCallbackFunc callback) override {
@@ -120,23 +117,11 @@ class VIPApi : public IVIPApi {
     void VIP_OnPlayerSpawn(SpawnCallbackFunc callback) override {
         vipOnPlayerSpawn.push_back(callback);
     }
-	void VIP_OnFireEvent(EventCallbackFunc callback) override {
-        vipOnFireEvent.push_back(callback);
-    }
     void VIP_OnVIPLoaded(ReadyCallbackFunc callback) override {
         vipOnVIPLoadeds.push_back(callback);
     }
 
-    void VIP_RegCommand(const char* szCommand, VIPCommandCallbackFunc callback) override {
-        vipCommand[std::string(szCommand)] = callback;
-    }
-
 public:
-    void FindAndCallCommand(std::string szCommand, const char* szContent, int iSlot) {
-        if(auto it = vipCommand.find(szCommand); it != vipCommand.end()) {
-            it->second(szContent, iSlot);
-        }
-    }
     void Call_VIP_OnVIPLoaded() {
         for (auto& callback : vipOnVIPLoadeds) {
             if (callback) {
@@ -148,13 +133,6 @@ public:
         for (auto& callback : vipOnPlayerSpawn) {
             if (callback) {
                 callback(iSlot, iTeam, bIsVIP);
-            }
-        }
-    }
-    void Call_VIP_OnFireEvent(const char* szName, IGameEvent* pEvent, bool bDontBroadcast) {
-        for (auto& callback : vipOnFireEvent) {
-            if (callback) {
-                callback(szName, pEvent, bDontBroadcast);
             }
         }
     }
@@ -193,17 +171,6 @@ public:
 	}
 };
 
-
-class CPlayerSpawnEvent : public IGameEventListener2
-{
-	void FireGameEvent(IGameEvent* event) override;
-};
-
-class CRoundPreStartEvent : public IGameEventListener2
-{
-	void FireGameEvent(IGameEvent* event) override;
-};
-
 class CEntityListener : public IEntityListener
 {
 	void OnEntitySpawned(CEntityInstance* pEntity) override;
@@ -215,67 +182,13 @@ struct VipPlayer
 	int TimeEnd;
 };
 
-struct Items
+struct VIPFunctions
 {
-    int iType;
-    std::string sBack;
-    std::string sText;
-};
-
-struct Menus
-{
-    std::string szTitle;
-    std::vector<Items> hItems;
-    // bool bBack;
-    bool bExit;
-};
-
-struct MenuPlayer
-{
-    bool bEnabled;
-    int iList;
-    int iMenu;
-};
-
-// struct Cookie
-// {
-// 	std::map<std::string, std::string> hCookie;
-// };
-
-const std::string colors_text[] = {
-	"{DEFAULT}",
-	"{RED}",
-	"{LIGHTPURPLE}",
-	"{GREEN}",
-	"{LIME}",
-	"{LIGHTGREEN}",
-	"{LIGHTRED}",
-	"{GRAY}",
-	"{LIGHTOLIVE}",
-	"{OLIVE}",
-	"{LIGHTBLUE}",
-	"{BLUE}",
-	"{PURPLE}",
-	"{GRAYBLUE}",
-	"\\n"
-};
-
-const std::string colors_hex[] = {
-	"\x01",
-	"\x02",
-	"\x03",
-	"\x04",
-	"\x05",
-	"\x06",
-	"\x07",
-	"\x08",
-	"\x09",
-	"\x10",
-	"\x0B",
-	"\x0C",
-	"\x0E",
-	"\x0A",
-	"\xe2\x80\xa9"
+    VIP_ValueType           eValType;
+    VIP_FeatureType	        eType;
+    ItemSelectableCallback	Select_callback;
+    ItemTogglableCallback	Togglable_callback;
+    ItemDisplayCallback		Display_callback;
 };
 
 #endif //_INCLUDE_METAMOD_SOURCE_STUB_PLUGIN_H_
