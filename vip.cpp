@@ -118,7 +118,7 @@ CON_COMMAND_F(vip_remove, "remove player vip", FCVAR_NONE)
 			uint32 m_steamID = pController->m_steamID();
 			if(m_steamID == 0)
 				continue;
-			if(strstr(std::to_string(m_steamID).c_str(), args[1]) || strstr(pController->m_iszPlayerName(), args[1]) || (containsOnlyDigits(args[1]) && std::stoi(args[1]) == i))
+			if(strstr(pController->m_iszPlayerName(), args[1]) || (containsOnlyDigits(args[1]) && m_steamID == std::stoll(args[1])) || (containsOnlyDigits(args[1]) && std::stoll(args[1]) == i))
 			{
 				bFound = true;
 				iSlot = i;
@@ -154,7 +154,7 @@ CON_COMMAND_F(vip_give, "give player vip", FCVAR_NONE)
 			uint32 m_steamID = pController->m_steamID();
 			if(m_steamID == 0)
 				continue;
-			if(strstr(std::to_string(m_steamID).c_str(), args[1]) || strstr(pController->m_iszPlayerName(), args[1]) || (containsOnlyDigits(args[1]) && std::stoi(args[1]) == i))
+			if(strstr(pController->m_iszPlayerName(), args[1]) || (containsOnlyDigits(args[1]) && m_steamID == std::stoll(args[1])) || (containsOnlyDigits(args[1]) && std::stoll(args[1]) == i))
 			{
 				bFound = true;
 				iSlot = i;
@@ -167,7 +167,7 @@ CON_COMMAND_F(vip_give, "give player vip", FCVAR_NONE)
 				META_CONPRINT("[VIP] The player already has VIP status\n");
 			else
 			{
-				g_pVIPCore->VIP_GiveClientVIP(iSlot, std::stoi(args[2]), args[3]);
+				g_pVIPCore->VIP_GiveClientVIP(iSlot, std::stoi(args[2]), args[3], true);
 				META_CONPRINT("[VIP] You have successfully granted VIP status\n");
 			}
 		}
@@ -879,7 +879,15 @@ void VIP::AllPluginsLoaded()
 		if (!connect) {
 			META_CONPRINT("Failed to connect the mysql database\n");
 		} else {
-			g_pConnection->Query("CREATE TABLE IF NOT EXISTS `vip_users` (`account_id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL default 'unknown', `lastvisit` INTEGER UNSIGNED NOT NULL default 0, `sid` INTEGER UNSIGNED NOT NULL, `group` VARCHAR(64) NOT NULL, `expires` INTEGER UNSIGNED NOT NULL default 0);", [this](IMySQLQuery* test) {});
+			g_pConnection->Query("CREATE TABLE IF NOT EXISTS `vip_users` (\
+`account_id` INT NOT NULL, \
+`name` VARCHAR(64) NOT NULL default 'unknown' COLLATE 'utf8mb4_unicode_ci', \
+`lastvisit` INT UNSIGNED NOT NULL default 0, \
+`sid` INT UNSIGNED NOT NULL, \
+`group` VARCHAR(64) NOT NULL, \
+`expires` INT UNSIGNED NOT NULL default 0, \
+CONSTRAINT pk_PlayerID PRIMARY KEY (`account_id`, `sid`) \
+) DEFAULT CHARSET=utf8mb4;", [this](IMySQLQuery* test) {});
 			g_pVIPApi->Call_VIP_OnVIPLoaded();
 			g_pVIPApi->SetReady(true);
 		}
