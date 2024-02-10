@@ -54,7 +54,7 @@ private: // Hooks
 	void StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
 	void GameFrame(bool simulating, bool bFirstTick, bool bLastTick);
 	void OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid);
-	void OnClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID);
+	void OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reason, const char *pszName, uint64 xuid, const char *pszNetworkID );
 	int g_iLastTime;
 };
 
