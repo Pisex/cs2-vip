@@ -11,6 +11,12 @@ CEntitySystem* g_pEntitySystem = nullptr;
 CSchemaSystem* g_pCSchemaSystem = nullptr;
 CCSGameRules* g_pGameRules = nullptr;
 
+CGameEntitySystem* GameEntitySystem()
+{
+	g_pGameEntitySystem = *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceService) + WIN_LINUX(0x58, 0x50));
+	return g_pGameEntitySystem;
+}
+
 std::map<std::string, KeyValues*> g_VipGroups;
 std::map<uint32, VipPlayer> g_VipPlayer;
 std::map<std::string, VIPFunctions> g_VipFunctions;
@@ -36,7 +42,7 @@ IVIPApi* g_pVIPCore = nullptr;
 class GameSessionConfiguration_t { };
 SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool, bool, bool);
 SH_DECL_HOOK4_void(IServerGameClients, ClientPutInServer, SH_NOATTRIB, 0, CPlayerSlot, char const*, int, uint64);
-SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CPlayerSlot, int, const char *, uint64, const char *);
+SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CPlayerSlot, ENetworkDisconnectionReason, const char *, uint64, const char *);
 SH_DECL_HOOK3_void(INetworkServerService, StartupServer, SH_NOATTRIB, 0, const GameSessionConfiguration_t&, ISource2WorldSession*, const char*);
 
 void (*UTIL_ClientPrint)(CBasePlayerController *player, int msg_dest, const char* msg_name, const char* param1, const char* param2, const char* param3, const char* param4) = nullptr;
@@ -345,8 +351,7 @@ void VIP::StartupServer(const GameSessionConfiguration_t& config, ISource2WorldS
 	static bool bDone = false;
 	if (!bDone)
 	{
-		g_pGameEntitySystem = *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceService) + WIN_LINUX(0x58, 0x50));
-		g_pEntitySystem = g_pGameEntitySystem;
+    g_pEntitySystem = GameEntitySystem();
 		bDone = true;
 	}
 }
@@ -709,7 +714,7 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 	});
 }
 
-void VIP::OnClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID)
+void VIP::OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reason, const char *pszName, uint64 xuid, const char *pszNetworkID )
 {
 	if (xuid == 0)
     	return;
