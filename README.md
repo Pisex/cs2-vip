@@ -8,7 +8,7 @@ List of modules - [click](https://github.com/Pisex/cs2-vip-modules)
 ## Require
 - CS2 Server (Linux or Window)
 - Remove server hibernation `sv_hibernate_when_empty 0`
-- mysql_mm plugins by Poggu : https://github.com/Poggicek/mysql_mm (In the release archive)
+- sql_mm plugins by zer0k-z : https://github.com/zer0k-z/sql_mm (In the release archive)
 - Specify database data in the config
 
 Those who can, please put [Accelerator](https://github.com/komashchenko/AcceleratorLocal/releases/tag/v1.0.0) and if the server crashes, then send the crash file so I can understand what caused it
