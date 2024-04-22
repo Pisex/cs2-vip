@@ -20,6 +20,7 @@ typedef std::function<bool(int iSlot, const char* szContent, bool bMute)> Comman
 typedef std::function<void(const char* szName, IGameEvent* pEvent, bool bDontBroadcast)> EventCallback;
 typedef std::function<void()> StartupCallback;
 
+
 class IUtilsApi
 {
 public:

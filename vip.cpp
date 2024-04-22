@@ -1,19 +1,18 @@
 #include <stdio.h>
 #include "vip.h"
 #include "metamod_oslink.h"
+#include "schemasystem/schemasystem.h"
 
 VIP g_VIP;
 PLUGIN_EXPOSE(VIP, g_VIP);
 IVEngineServer2* engine = nullptr;
-IGameResourceServiceServer* g_pGameResourceService = nullptr;
 CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CEntitySystem* g_pEntitySystem = nullptr;
-CSchemaSystem* g_pCSchemaSystem = nullptr;
 CCSGameRules* g_pGameRules = nullptr;
 
 CGameEntitySystem* GameEntitySystem()
 {
-	g_pGameEntitySystem = *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceService) + WIN_LINUX(0x58, 0x50));
+	g_pGameEntitySystem = *reinterpret_cast<CGameEntitySystem**>(reinterpret_cast<uintptr_t>(g_pGameResourceServiceServer) + WIN_LINUX(0x58, 0x50));
 	return g_pGameEntitySystem;
 }
 
@@ -243,13 +242,13 @@ bool VIP::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late
 	PLUGIN_SAVEVARS();
 
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
-	GET_V_IFACE_ANY(GetEngineFactory, g_pCSchemaSystem, CSchemaSystem, SCHEMASYSTEM_INTERFACE_VERSION);
+	GET_V_IFACE_ANY(GetEngineFactory, g_pSchemaSystem, ISchemaSystem, SCHEMASYSTEM_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2, SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetServerFactory, g_pSource2Server, ISource2Server, SOURCE2SERVER_INTERFACE_VERSION);
 	GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients, SOURCE2GAMECLIENTS_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pNetworkServerService, INetworkServerService, NETWORKSERVERSERVICE_INTERFACE_VERSION);
-	GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceService, IGameResourceServiceServer, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
+	GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
 
 	if (!g_VIP.LoadVips(error, maxlen))
 	{
@@ -351,7 +350,7 @@ void VIP::StartupServer(const GameSessionConfiguration_t& config, ISource2WorldS
 	static bool bDone = false;
 	if (!bDone)
 	{
-    g_pEntitySystem = GameEntitySystem();
+    	g_pEntitySystem = GameEntitySystem();
 		bDone = true;
 	}
 }
@@ -389,7 +388,7 @@ void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 				
 				char szQuery[256];
 				g_SMAPI->Format(szQuery, sizeof(szQuery), "DELETE FROM `vip_users` WHERE `account_id` = '%d' AND `sid` = %i;", m_steamID, m_iServerID);
-				g_pConnection->Query(szQuery, [this](IMySQLQuery* test){});
+				g_pConnection->Query(szQuery, [this](ISQLQuery* test){});
 			}
 		}
 	}
@@ -471,7 +470,7 @@ bool VIPApi::VIP_SetClientAccessTime(int iSlot, int iTime, bool bInDB)
 	{
 		char szQuery[256];
 		g_SMAPI->Format(szQuery, sizeof(szQuery), "UPDATE `vip_users` SET `expires` = %i  WHERE `account_id` = '%d' AND `sid` = %i;", iTime, m_steamID, m_iServerID);
-		g_pConnection->Query(szQuery, [this](IMySQLQuery* test){});
+		g_pConnection->Query(szQuery, [this](ISQLQuery* test){});
 	}
 	return true;
 }
@@ -495,7 +494,7 @@ bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool b
 	{
 		char szQuery[256];
 		g_SMAPI->Format(szQuery, sizeof(szQuery), "INSERT INTO `vip_users` (`account_id`, `name`, `lastvisit`, `sid`, `group`, `expires`) VALUES ('%d', '%s', '%i', '%i', '%s', '%i');", m_steamID, g_pConnection->Escape(engine->GetClientConVarValue(iSlot, "name")).c_str(), std::time(0), m_iServerID, szGroup, iTime != 0?std::time(0)+iTime:0);
-		g_pConnection->Query(szQuery, [this](IMySQLQuery* test){});
+		g_pConnection->Query(szQuery, [this](ISQLQuery* test){});
 	}
 	if(player.TimeEnd == 0) g_pUtils->PrintToChat(iSlot, g_pVIPCore->VIP_GetTranslate("WelcomePerm"), pController->m_iszPlayerName());
 	else
@@ -526,7 +525,7 @@ bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 	{
 		char szQuery[256];
 		g_SMAPI->Format(szQuery, sizeof(szQuery), "DELETE FROM `vip_users` WHERE `account_id` = '%d' AND `sid` = %i;", m_steamID, m_iServerID);
-		g_pConnection->Query(szQuery, [this](IMySQLQuery* test){});
+		g_pConnection->Query(szQuery, [this](ISQLQuery* test){});
 	}
 	if(bNotify)
 	{
@@ -564,7 +563,7 @@ bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 	{
 		char szQuery[256];
 		g_SMAPI->Format(szQuery, sizeof(szQuery), "UPDATE `vip_users` SET `group` = '%s'  WHERE `account_id` = '%d' AND `sid` = %i;", szGroup, m_steamID, m_iServerID);
-		g_pConnection->Query(szQuery, [this](IMySQLQuery* test){});
+		g_pConnection->Query(szQuery, [this](ISQLQuery* test){});
 	}
 	return true;
 }
@@ -680,7 +679,7 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 
 	char szQuery[256];
 	g_SMAPI->Format(szQuery, sizeof(szQuery), "SELECT `group`, `expires` FROM `vip_users` WHERE `account_id` = %d AND `sid` = %d;", m_steamID, m_iServerID);
-	g_pConnection->Query(szQuery, [slot, m_steamID, pPlayerController, this](IMySQLQuery* test)
+	g_pConnection->Query(szQuery, [slot, m_steamID, pPlayerController, this](ISQLQuery* test)
 	{
 		auto results = test->GetResultSet();
 		if(results->FetchRow())
@@ -708,7 +707,7 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 			}
 			else
 				g_SMAPI->Format(szQuery, sizeof(szQuery), "DELETE FROM vip_users WHERE account_id = '%d' AND `sid` = %i;", m_steamID, m_iServerID);
-			g_pConnection->Query(szQuery, [](IMySQLQuery* test){});
+			g_pConnection->Query(szQuery, [](ISQLQuery* test){});
 		}
 		else g_pVIPApi->Call_VIP_OnClientLoaded(slot.Get(), false);
 	});
@@ -827,7 +826,7 @@ void VIP::AllPluginsLoaded()
 {
 	char error[64] = { 0 };
 	int ret;
-	g_pMysqlClient = static_cast<IMySQLClient*>(g_SMAPI->MetaFactory(MYSQLMM_INTERFACE, &ret, nullptr));
+	g_pMysqlClient = ((ISQLInterface *)g_SMAPI->MetaFactory(SQLMM_INTERFACE, &ret, nullptr))->GetMySQLClient();
 	if (ret == META_IFACE_FAILED)
 	{
 		V_strncpy(error, "Missing MYSQL plugin", 64);
@@ -856,28 +855,28 @@ void VIP::AllPluginsLoaded()
 		engine->ServerCommand(sBuffer.c_str());
 		return;
 	}
+	
+	KeyValues* pKVConfig = new KeyValues("Databases");
 
-	KeyValues* pKVConfigVIP = new KeyValues("Databases");
-
-	if (!pKVConfigVIP->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg")) {
-		V_strncpy(error, "Failed to load vip config 'addons/config/databases.cfg'", sizeof(error));
+	if (!pKVConfig->LoadFromFile(g_pFullFileSystem, "addons/configs/databases.cfg")) {
+		V_strncpy(error, "Failed to load databases config 'addons/config/databases.cfg'", sizeof(error));
+		ConColorMsg(Color(255, 0, 0, 255), "[LR] %s\n", error);
 		return;
 	}
 
-	pKVConfigVIP = pKVConfigVIP->FindKey("vip", false);
-	if (!pKVConfigVIP) {
-		V_strncpy(error, "No databases.cfg 'vip'", sizeof(error));
+	pKVConfig = pKVConfig->FindKey("levels_ranks", false);
+	if (!pKVConfig) {
+		g_SMAPI->Format(error, sizeof(error), "No databases.cfg 'levels_ranks'");
+		ConColorMsg(Color(255, 0, 0, 255), "[LR] %s\n", error);
 		return;
 	}
 
-	MySQLConnectionInfo info {
-		pKVConfigVIP->GetString("host", nullptr),
-		pKVConfigVIP->GetString("user", nullptr),
-		pKVConfigVIP->GetString("pass", nullptr),
-		pKVConfigVIP->GetString("database", nullptr),
-		pKVConfigVIP->GetInt("port", 3306)
-	};
-
+	MySQLConnectionInfo info;
+	info.host = pKVConfig->GetString("host", nullptr);
+	info.user = pKVConfig->GetString("user", nullptr);
+	info.pass = pKVConfig->GetString("pass", nullptr);
+	info.database = pKVConfig->GetString("database", nullptr);
+	info.port = pKVConfig->GetInt("port");
 	g_pConnection = g_pMysqlClient->CreateMySQLConnection(info);
 
 	g_pConnection->Connect([this](bool connect) {
@@ -892,7 +891,7 @@ void VIP::AllPluginsLoaded()
 `group` VARCHAR(64) NOT NULL, \
 `expires` INT UNSIGNED NOT NULL default 0, \
 CONSTRAINT pk_PlayerID PRIMARY KEY (`account_id`, `sid`) \
-) DEFAULT CHARSET=utf8mb4;", [this](IMySQLQuery* test) {});
+) DEFAULT CHARSET=utf8mb4;", [this](ISQLQuery* test) {});
 			g_pVIPApi->Call_VIP_OnVIPLoaded();
 			g_pVIPApi->SetReady(true);
 		}
