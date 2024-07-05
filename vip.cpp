@@ -52,7 +52,7 @@ bool containsOnlyDigits(const std::string& str) {
 
 void VIPApi::VIP_PrintToCenter(int Slot, const char *msg, ...)
 {
-	CCSPlayerController* pPlayerController =  (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(Slot + 1));
+	CCSPlayerController* pPlayerController =  CCSPlayerController::FromSlot(Slot);
 	if (!pPlayerController)
 		return;
 	uint32 m_steamID = pPlayerController->m_steamID();
@@ -71,7 +71,7 @@ void VIPApi::VIP_PrintToCenter(int Slot, const char *msg, ...)
 
 KeyValues* GetGroupKV(int iSlot)
 {
-	CCSPlayerController* pController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(iSlot + 1)));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return nullptr;
 
@@ -117,7 +117,7 @@ CON_COMMAND_F(vip_remove, "remove player vip", FCVAR_NONE)
 		int iSlot = 0; 
 		for (int i = 0; i < 64; i++)
 		{
-			CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(i + 1));
+			CCSPlayerController* pController = CCSPlayerController::FromSlot(i);
 			if (!pController)
 				continue;
 			uint32 m_steamID = pController->m_steamID();
@@ -153,7 +153,7 @@ CON_COMMAND_F(vip_give, "give player vip", FCVAR_NONE)
 		int iSlot = 0; 
 		for (int i = 0; i < 64; i++)
 		{
-			CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(i + 1));
+			CCSPlayerController* pController = CCSPlayerController::FromSlot(i);
 			if (!pController)
 				continue;
 			uint32 m_steamID = pController->m_steamID();
@@ -183,7 +183,7 @@ CON_COMMAND_F(vip_give, "give player vip", FCVAR_NONE)
 
 const char* VIPApi::VIP_GetClientCookie(int iSlot, const char* sCookieName)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return "";
 	uint32 m_steamID = pController->m_steamID();
@@ -197,7 +197,7 @@ const char* VIPApi::VIP_GetClientCookie(int iSlot, const char* sCookieName)
 
 bool VIPApi::VIP_SetClientCookie(int iSlot, const char* sCookieName, const char* sData)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -279,8 +279,8 @@ bool VIP::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late
 			g_vecPhrases[std::string(pKey->GetName())] = std::string(pKey->GetString(g_pszLanguage));
 	}
 
-	CModule libserver(g_pSource2Server);
-	UTIL_ClientPrint = libserver.FindPatternSIMD(WIN_LINUX("48 85 C9 0F 84 2A 2A 2A 2A 48 8B C4 48 89 58 18", "55 48 89 E5 41 57 49 89 CF 41 56 49 89 D6 41 55 41 89 F5 41 54 4C 8D A5 A0 FE FF FF")).RCast< decltype(UTIL_ClientPrint) >();
+	DynLibUtils::CModule libserver(g_pSource2Server);
+	UTIL_ClientPrint = libserver.FindPattern(WIN_LINUX("48 85 C9 0F 84 2A 2A 2A 2A 48 8B C4 48 89 58 18", "55 48 89 E5 41 57 49 89 CF 41 56 49 89 D6 41 55 41 89 F5 41 54 4C 8D A5 A0 FE FF FF")).RCast< decltype(UTIL_ClientPrint) >();
 	if (!UTIL_ClientPrint)
 	{
 		V_strncpy(error, "Failed to find function to get UTIL_ClientPrint", maxlen);
@@ -368,7 +368,7 @@ void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 		g_iLastTime = std::time(0);
 		for (int i = 0; i < 64; i++)
 		{
-			CCSPlayerController* pPlayerController =  (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(i + 1));
+			CCSPlayerController* pPlayerController =  CCSPlayerController::FromSlot(i);
 			if (!pPlayerController)
 				continue;
 			uint32 m_steamID = pPlayerController->m_steamID();
@@ -435,7 +435,7 @@ bool VIPApi::VIP_PistolRound()
 
 int VIPApi::VIP_GetClientAccessTime(int iSlot)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return -1;
 	uint32 m_steamID = pController->m_steamID();
@@ -453,7 +453,7 @@ int VIPApi::VIP_GetClientAccessTime(int iSlot)
 
 bool VIPApi::VIP_SetClientAccessTime(int iSlot, int iTime, bool bInDB)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -477,7 +477,7 @@ bool VIPApi::VIP_SetClientAccessTime(int iSlot, int iTime, bool bInDB)
 
 bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool bAddToDB)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -510,7 +510,7 @@ bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool b
 
 bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -539,7 +539,7 @@ bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 
 bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -570,7 +570,7 @@ bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 
 bool VIPApi::VIP_IsClientVIP(int iSlot)
 {
-	CCSPlayerController* pController = (CCSPlayerController *)g_pEntitySystem->GetBaseEntity((CEntityIndex)(iSlot + 1));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 	uint32 m_steamID = pController->m_steamID();
@@ -671,7 +671,7 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 	if (slot.Get() == -1)
     	return;
 
-	CCSPlayerController* pPlayerController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(slot.Get() + 1)));
+	CCSPlayerController* pPlayerController = CCSPlayerController::FromSlot(slot.Get());
 	if (!pPlayerController)
 		return;
 
@@ -781,7 +781,7 @@ void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
 
 bool OnVIPCommand(int iSlot, const char* szContent)
 {
-	CCSPlayerController* pController = static_cast<CCSPlayerController*>(g_pEntitySystem->GetBaseEntity(static_cast<CEntityIndex>(iSlot + 1)));
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController)
 		return false;
 
