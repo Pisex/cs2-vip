@@ -135,6 +135,7 @@ class MMSPluginConfig(object):
         '-msse',
         '-fPIC',
         '-frtti'
+
       ]
 
       cxx.cxxflags += ['-std=c++17']
@@ -167,6 +168,7 @@ class MMSPluginConfig(object):
         cxx.cflags += [
           '-Wno-implicit-int-float-conversion',
           '-Wno-tautological-overlap-compare',
+          '-Wno-ordered-compare-function-pointers'
         ]
 
     elif cxx.like('msvc'):

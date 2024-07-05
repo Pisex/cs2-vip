@@ -7,6 +7,7 @@ metamod_folder = builder.AddFolder(os.path.join('addons', 'metamod'))
 bin_folder_path = os.path.join('addons', MMSPlugin.plugin_name)
 bin_folder = builder.AddFolder(bin_folder_path)
 
+
 for cxx in MMSPlugin.all_targets:
   if cxx.target.arch == 'x86_64':
     bin64_folder_path = os.path.join('addons', MMSPlugin.plugin_name)
@@ -34,13 +35,13 @@ for task in MMSPlugin.binaries:
   if task.debug:
     pdb_list.append(task.debug)
 
-builder.AddCopy(os.path.join(builder.buildPath, MMSPlugin.plugin_name + '.vdf'), metamod_folder)
+#builder.AddCopy(os.path.join(builder.buildPath, MMSPlugin.plugin_name + '.vdf'), metamod_folder)
 
-configs_folder = builder.AddFolder(os.path.join('addons', 'configs', 'vip'))
-builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'groups.ini'), configs_folder)
-configs_folder = builder.AddFolder(os.path.join('addons', 'translations'))
-builder.AddCopy(os.path.join(builder.sourcePath, 'translations', 'vip.phrases.txt'), configs_folder)
-configs_folder = builder.AddFolder(os.path.join('addons', 'data'))
-builder.AddCopy(os.path.join(builder.sourcePath, 'data', 'vip_data.ini'), configs_folder)
-configs_folder = builder.AddFolder(os.path.join('addons', 'configs'))
-builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'databases.cfg'), configs_folder)
+#configs_folder = builder.AddFolder(os.path.join('addons', 'configs', 'vip'))
+#builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'groups.ini'), configs_folder)
+#configs_folder = builder.AddFolder(os.path.join('addons', 'translations'))
+#builder.AddCopy(os.path.join(builder.sourcePath, 'translations', 'vip.phrases.txt'), configs_folder)
+#configs_folder = builder.AddFolder(os.path.join('addons', 'data'))
+#builder.AddCopy(os.path.join(builder.sourcePath, 'data', 'vip_data.ini'), configs_folder)
+#configs_folder = builder.AddFolder(os.path.join('addons', 'configs'))
+#builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'databases.cfg'), configs_folder)

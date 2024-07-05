@@ -2,31 +2,33 @@
 #define _INCLUDE_METAMOD_SOURCE_STUB_PLUGIN_H_
 
 #include <ISmmPlugin.h>
-#include <sh_vector.h>
+#include <igameevents.h>
+#include <iplayerinfo.h>
 #include "utlvector.h"
 #include "ehandle.h"
-#include <iserver.h>
+#include <sh_vector.h>
 #include <entity2/entitysystem.h>
-#include "igameevents.h"
+#include "sdk/utils.hpp"
+#include "module.h"
+#include "CCSPlayerController.h"
+#include "CGameRules.h"
+#include "iserver.h"
+#include "include/vip.h"
+#include "include/menus.h"
+
+#include <ctime>
+
+
 #include "vector.h"
 #include <deque>
 #include <functional>
-#include "sdk/utils.hpp"
 #include <utlstring.h>
 #include <KeyValues.h>
-#include "sdk/schemasystem.h"
-#include "sdk/CBaseEntity.h"
-#include "sdk/CGameRulesProxy.h"
-#include "sdk/CBasePlayerPawn.h"
-#include "sdk/CCSPlayerController.h"
-#include "sdk/CCSPlayer_ItemServices.h"
-#include "sdk/CSmokeGrenadeProjectile.h"
-#include "sdk/module.h"
+
 #include "include/mysql_mm.h"
-#include "include/vip.h"
-#include "include/menus.h"
+
 #include <map>
-#include <ctime>
+
 #include <chrono>
 #include <array>
 #include <thread>
