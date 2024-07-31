@@ -11,17 +11,12 @@
 #include "vector.h"
 #include <deque>
 #include <functional>
-#include "sdk/utils.hpp"
+#include "utils.hpp"
 #include <utlstring.h>
 #include <KeyValues.h>
-#include "sdk/schemasystem.h"
-#include "sdk/CBaseEntity.h"
-#include "sdk/CGameRulesProxy.h"
-#include "sdk/CBasePlayerPawn.h"
-#include "sdk/CCSPlayerController.h"
-#include "sdk/CCSPlayer_ItemServices.h"
-#include "sdk/CSmokeGrenadeProjectile.h"
-#include "sdk/module.h"
+#include "CCSPlayerController.h"
+#include "CGameRules.h"
+#include "module.h"
 #include "include/mysql_mm.h"
 #include "include/vip.h"
 #include "include/menus.h"
@@ -36,8 +31,6 @@ class VIP final : public ISmmPlugin, public IMetamodListener
 public:
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late);
 	bool Unload(char* error, size_t maxlen);
-	bool LoadVips(char* error, size_t maxlen);
-    bool LoadVIPData(char* error, size_t maxlen);
 	void AllPluginsLoaded();
 	void* OnMetamodQuery(const char* iface, int* ret);
 private:
@@ -51,9 +44,8 @@ private:
 	const char* GetLogTag();
 
 private: // Hooks
-	void StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
 	void GameFrame(bool simulating, bool bFirstTick, bool bLastTick);
-	void OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid);
+    void OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid);
 	void OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reason, const char *pszName, uint64 xuid, const char *pszNetworkID );
 	int g_iLastTime;
 };
