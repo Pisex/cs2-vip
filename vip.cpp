@@ -603,8 +603,9 @@ bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 
 bool VIPApi::VIP_IsClientVIP(int iSlot)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
