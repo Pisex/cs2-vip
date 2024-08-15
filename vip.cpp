@@ -10,7 +10,6 @@ CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CEntitySystem* g_pEntitySystem = nullptr;
 CCSGameRules* g_pGameRules = nullptr;
 
-
 std::map<std::string, KeyValues*> g_VipGroups;
 std::map<uint32, VipPlayer> g_VipPlayer;
 std::map<std::string, VIPFunctions> g_VipFunctions;
@@ -61,8 +60,9 @@ void VIPApi::VIP_PrintToCenter(int Slot, const char *msg, ...)
 
 KeyValues* GetGroupKV(int iSlot)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return nullptr;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return nullptr;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return nullptr;
 
 	auto vipGroup = g_VipPlayer.find(m_steamID);
@@ -265,8 +265,9 @@ CON_COMMAND_F(vip_give, "give player vip", FCVAR_NONE)
 
 const char* VIPApi::VIP_GetClientCookie(int iSlot, const char* sCookieName)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return "";
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return "";
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return "";
 	KeyValues *hData = g_hKVData->FindKey(std::to_string(m_steamID).c_str(), false);
 	if(!hData) return "";
@@ -276,8 +277,9 @@ const char* VIPApi::VIP_GetClientCookie(int iSlot, const char* sCookieName)
 
 bool VIPApi::VIP_SetClientCookie(int iSlot, const char* sCookieName, const char* sData)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 
 	KeyValues *hData = g_hKVData->FindKey(std::to_string(m_steamID).c_str(), true);
@@ -356,13 +358,11 @@ bool VIP::Unload(char *error, size_t maxlen)
 
 void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid)
 {
+	if(xuid == 0) return;
 	int iSlot = slot.Get();
-	if(g_pPlayers->IsFakeClient(iSlot)) return;
-	if(!g_pPlayers->IsAuthenticated(iSlot)) return;
-	if(!g_pPlayers->IsConnected(iSlot)) return;
-	if(!g_pPlayers->IsInGame(iSlot)) return;
-
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup != g_VipPlayer.end())
@@ -420,6 +420,7 @@ void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 			if(!g_pPlayers->IsAuthenticated(i)) continue;
 			if(!g_pPlayers->IsConnected(i)) continue;
 			if(!g_pPlayers->IsInGame(i)) continue;
+			if(!g_pPlayers->GetSteamID(i)) continue;
 			uint32 m_steamID = g_pPlayers->GetSteamID(i)->GetStaticAccountKey();
 			if(m_steamID == 0) continue;
 			auto vipGroup = g_VipPlayer.find(m_steamID);
@@ -484,7 +485,9 @@ bool VIPApi::VIP_PistolRound()
 int VIPApi::VIP_GetClientAccessTime(int iSlot)
 {
 	if(g_pPlayers->IsFakeClient(iSlot)) return -1;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return -1;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
@@ -499,7 +502,9 @@ int VIPApi::VIP_GetClientAccessTime(int iSlot)
 bool VIPApi::VIP_SetClientAccessTime(int iSlot, int iTime, bool bInDB)
 {
 	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
@@ -520,7 +525,9 @@ bool VIPApi::VIP_SetClientAccessTime(int iSlot, int iTime, bool bInDB)
 bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool bAddToDB)
 {
 	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup != g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot)) return false;
@@ -543,14 +550,16 @@ bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool b
     	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&currentTime_t));
 		g_pUtils->PrintToChat(iSlot, g_pVIPCore->VIP_GetTranslate("Welcome"), engine->GetClientConVarValue(iSlot, "name"), buffer);
 	}
+	g_pVIPApi->Call_VIP_OnClientLoaded(iSlot, true);
 	g_pVIPApi->Call_VIP_OnVIPClientAdded(iSlot);
 	return true;
 }
 
 bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
@@ -570,13 +579,15 @@ bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 		g_pUtils->PrintToChat(iSlot, g_pVIPCore->VIP_GetTranslate("VIPExpired3"));
 	}
 	g_pVIPApi->Call_VIP_OnVIPClientRemoved(iSlot, 2);
+	g_pVIPApi->Call_VIP_OnClientDisconnect(iSlot, false);
 	return true;
 }
 
 bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return false;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return false;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
@@ -699,8 +710,9 @@ bool VIPApi::VIP_IsValidVIPGroup(const char* szGroup)
 
 void OnClientAuthorized(int iSlot, uint64 iSteamID64)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return;
-	uint32 m_steamID = g_pPlayers->GetSteamID(iSlot)->GetStaticAccountKey();
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return;
+	uint32 m_steamID = pController->m_steamID();
 	if(m_steamID == 0) return;
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup != g_VipPlayer.end())
@@ -935,7 +947,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.2";
+	return "1.2.1";
 }
 
 const char* VIP::GetDate()
