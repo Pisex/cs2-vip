@@ -6,7 +6,7 @@ List of modules - [click](https://github.com/Pisex/cs2-vip-modules)
 - [ ]  ...
 
 ## Require
-- CS2 Server (Linux or Window)
+- CS2 Server (Linux or Windows)
 - Remove server hibernation `sv_hibernate_when_empty 0`
 - sql_mm plugins by zer0k-z : https://github.com/zer0k-z/sql_mm (In the release archive)
 - Specify database data in the config
