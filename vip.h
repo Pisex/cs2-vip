@@ -114,6 +114,7 @@ class VIPApi : public IVIPApi {
         vipOnVIPLoadeds.push_back(callback);
     }
 
+    void VIP_OpenMenu(int iSlot);
 public:
     void Call_VIP_OnVIPLoaded() {
         for (auto& callback : vipOnVIPLoadeds) {

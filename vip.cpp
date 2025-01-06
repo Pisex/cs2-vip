@@ -775,6 +775,10 @@ void VIP::OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reas
 
 bool OnVIPCommand(int iSlot, const char* szContent);
 
+void VIPApi::VIP_OpenMenu(int iSlot) {
+	OnVIPCommand(iSlot, "");
+}
+
 void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
 {
 	if(iItem < 7)
