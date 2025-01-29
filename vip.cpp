@@ -10,11 +10,11 @@ CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CEntitySystem* g_pEntitySystem = nullptr;
 CCSGameRules* g_pGameRules = nullptr;
 
-std::map<std::string, KeyValues*> g_VipGroups;
+std::map<std::string, std::map<std::string,std::string>> g_VipGroups;
 std::map<uint32, VipPlayer> g_VipPlayer;
 std::map<std::string, VIPFunctions> g_VipFunctions;
 
-KeyValues* pKVVips;
+std::map<std::string, std::string> g_pKVUser[64];
 
 bool g_bPistolRound;
 int m_iServerID;
@@ -59,33 +59,40 @@ void VIPApi::VIP_PrintToCenter(int Slot, const char *msg, ...)
 	g_pUtils->PrintToCenter(Slot, buf);
 }
 
-KeyValues* GetGroupKV(int iSlot)
+std::map<std::string, std::string> GetGroupKV(int iSlot)
 {
-	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
-	if (!pController) return nullptr;
-	uint32 m_steamID = pController->m_steamID();
-	if(m_steamID == 0) return nullptr;
+    CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+    if (!pController) return {};
+    uint32 m_steamID = pController->m_steamID();
+    if(m_steamID == 0) return {};
 
-	auto vipGroup = g_VipPlayer.find(m_steamID);
-	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
-		return nullptr;
+    auto vipGroup = g_VipPlayer.find(m_steamID);
+    if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
+        return {};
+    
+    if(g_pKVUser[iSlot].size() > 0)
+        return g_pKVUser[iSlot];
 
-	VipPlayer& player = vipGroup->second;
-	if (player.TimeEnd <= std::time(0) && player.TimeEnd != 0)
-		return nullptr;
+    VipPlayer& player = vipGroup->second;
+    if (player.TimeEnd <= std::time(0) && player.TimeEnd != 0)
+        return {};
 
-	auto vipPlayer = g_VipGroups[player.sGroup];
-	const char* vipGroupLegacy = vipPlayer->GetString("legacy", "");
-	if(vipGroupLegacy && vipGroupLegacy[0]) {
-		KeyValues* vipLegacy = g_VipGroups[vipGroupLegacy];
-		if(vipLegacy) {
-			FOR_EACH_VALUE(vipPlayer, pKey) {
-				vipLegacy->SetString(pKey->GetName(), pKey->GetString(nullptr, nullptr));
-			}
-			return vipLegacy;
+    std::map<std::string, std::string> vipPlayer = g_VipGroups[player.sGroup];
+	if (vipPlayer.empty())
+		return {};
+
+	const char* vipGroupLegacy = vipPlayer["legacy"].c_str();
+	while(vipGroupLegacy && vipGroupLegacy[0]) {
+		auto vipLegacy = g_VipGroups[vipGroupLegacy];
+		if(!vipLegacy.empty()) {
+			vipGroupLegacy = vipLegacy["legacy"].c_str();
+			for(auto& [key, value] : vipLegacy) if(vipPlayer[key].empty()) vipPlayer[key] = value;
+		} else {
+			break;
 		}
-	} 
-	return vipPlayer;
+	}
+	g_pKVUser[iSlot] = vipPlayer;
+    return vipPlayer;
 }
 
 const char *VIPApi::VIP_GetTranslate(const char* phrase)
@@ -95,12 +102,9 @@ const char *VIPApi::VIP_GetTranslate(const char* phrase)
 
 bool LoadVips()
 {
-	if(pKVVips)
-	{
-		g_VipGroups.clear();
-		delete pKVVips;
-	}
-	pKVVips = new KeyValues("VIP");
+	g_VipGroups.clear();
+	for (int i = 0; i < 64; i++) g_pKVUser[i].clear();
+	KeyValues* pKVVips = new KeyValues("VIP");
 	
 	if (!pKVVips->LoadFromFile(g_pFullFileSystem, "addons/configs/vip/groups.ini"))
 	{
@@ -111,7 +115,12 @@ bool LoadVips()
 	for (KeyValues* pKey = pKVVips->GetFirstSubKey(); pKey; pKey = pKey->GetNextKey())
 	{
 		const char* sGroup = pKey->GetName();
-		g_VipGroups[std::string(sGroup)] = pKey;
+		std::map<std::string,std::string> group;
+		FOR_EACH_VALUE(pKey, pValue)
+		{
+			group[pValue->GetName()] = pValue->GetString(nullptr, nullptr);
+		}
+		g_VipGroups[std::string(sGroup)] = group;
 	}
 	return true;
 }
@@ -152,6 +161,7 @@ CON_COMMAND_F(mm_reload_vip, "check player vip", FCVAR_NONE)
 			auto vipGroup = g_VipPlayer.find(m_steamID);
 			if (vipGroup != g_VipPlayer.end())
 				g_VipPlayer.erase(vipGroup);
+			g_pKVUser[iSlot].clear();
 			char szQuery[256];
 			g_SMAPI->Format(szQuery, sizeof(szQuery), "SELECT `group`, `expires` FROM `vip_users` WHERE `account_id` = %d AND `sid` = %d;", m_steamID, m_iServerID);
 			g_pConnection->Query(szQuery, [iSlot, m_steamID, pController](ISQLQuery* test)
@@ -455,6 +465,7 @@ void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 			if(player.TimeEnd < std::time(0) & player.TimeEnd != 0)
 			{
 				g_VipPlayer.erase(vipGroup);
+				g_pKVUser[i].clear();
 				g_pVIPApi->Call_VIP_OnVIPClientRemoved(i, 1);
 				g_pUtils->PrintToChat(i, g_pVIPCore->VIP_GetTranslate("VIPExpired1"));
 				g_pUtils->PrintToChat(i, g_pVIPCore->VIP_GetTranslate("VIPExpired2"));
@@ -591,6 +602,7 @@ bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 		return false;
 
 	g_VipPlayer.erase(vipGroup);
+	g_pKVUser[iSlot].clear();
 	if(bInDB)
 	{
 		char szQuery[256];
@@ -623,7 +635,7 @@ bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 	if(player.TimeEnd <= std::time(0) && player.TimeEnd != 0)
 		return false;
 
-	if(g_VipGroups[std::string(szGroup)] == NULL)
+	if(g_VipGroups[std::string(szGroup)].empty())
 		return false;
 
 	player.sGroup = std::string(szGroup);
@@ -651,61 +663,67 @@ bool VIPApi::VIP_IsClientVIP(int iSlot)
 	if(player.TimeEnd <= std::time(0) && player.TimeEnd != 0) return false;
 
 	auto vipPlayer = g_VipGroups[player.sGroup];
-	if (vipPlayer == NULL)
+	if (vipPlayer.empty())
 		return false;
 	return true;
 }
 
 int VIPApi::VIP_GetClientFeatureInt(int iSlot, const char* szFeature)
 {
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
+	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
+	if (Group.empty())
 		return -1;
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-		return Group->GetInt(szFeature, -1);
+		return Group[szFeature] != ""?atoi(Group[szFeature].c_str()):-1;
 	return -1;
 }
 
 bool VIPApi::VIP_GetClientFeatureBool(int iSlot, const char* szFeature)
 {
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
+	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
+	if (Group.empty())
 		return false;
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-		return Group->GetBool(szFeature, false);
+		return Group[szFeature] != ""?atoi(Group[szFeature].c_str()):false;
 	return false;
 }
 
 float VIPApi::VIP_GetClientFeatureFloat(int iSlot, const char* szFeature)
 {
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
+	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
+	if (Group.empty())
 		return 1.f;
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-		return Group->GetFloat(szFeature, 1.f);
+		return Group[szFeature] != ""?atof(Group[szFeature].c_str()):1.f;
 	return 1.f;
 }
 
 const char* VIPApi::VIP_GetClientFeatureString(int iSlot, const char* szFeature)
 {
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
+	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
+	if (Group.empty())
 		return "";
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-		return Group->GetString(szFeature, "");
+		return Group[szFeature].c_str();
 	return "";
 }
 
 const char* VIPApi::VIP_GetClientVIPGroup(int iSlot)
 {
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (Group == NULL)
+	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
+	if (!pController) return "";
+	uint32 m_steamID = pController->m_steamID();
+	if(m_steamID == 0) return "";
+
+	auto vipGroup = g_VipPlayer.find(m_steamID);
+	if (vipGroup == g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot))
 		return "";
-	return Group->GetName();
+	
+	return vipGroup->second.sGroup.c_str();
 }
 
 CGameEntitySystem* VIPApi::VIP_GetEntitySystem()
@@ -730,7 +748,7 @@ void VIPApi::VIP_RegisterFeature(const char* szFeature, VIP_ValueType eValType, 
 
 bool VIPApi::VIP_IsValidVIPGroup(const char* szGroup)
 {
-	return g_VipGroups[szGroup] != NULL;
+	return g_VipGroups[szGroup].empty()?false:true;
 }
 
 void OnClientAuthorized(int iSlot, uint64 iSteamID64)
@@ -742,7 +760,7 @@ void OnClientAuthorized(int iSlot, uint64 iSteamID64)
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup != g_VipPlayer.end())
 		g_VipPlayer.erase(vipGroup);
-
+	g_pKVUser[iSlot].clear();
 	char szQuery[256];
 	g_SMAPI->Format(szQuery, sizeof(szQuery), "SELECT `group`, `expires` FROM `vip_users` WHERE `account_id` = %d AND `sid` = %d;", m_steamID, m_iServerID);
 	g_pConnection->Query(szQuery, [iSlot, m_steamID](ISQLQuery* test)
@@ -773,10 +791,10 @@ void VIP::OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reas
 	g_pVIPApi->Call_VIP_OnClientDisconnect(slot.Get(), g_pVIPCore->VIP_IsClientVIP(slot.Get()));
 }
 
-bool OnVIPCommand(int iSlot, const char* szContent);
+void ShowVIPMenu(int iSlot, bool bReopen);
 
 void VIPApi::VIP_OpenMenu(int iSlot) {
-	OnVIPCommand(iSlot, "");
+	ShowVIPMenu(iSlot, true);
 }
 
 void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
@@ -806,7 +824,7 @@ void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
 			char szStatus[16];
 			g_SMAPI->Format(szStatus, sizeof(szStatus), "%i", bBlock?oldStatusValue:newStatus);
 			g_pVIPCore->VIP_SetClientCookie(iSlot, szBack, szStatus);
-			OnVIPCommand(iSlot, "");
+			ShowVIPMenu(iSlot, false);
 		}
 		else
 		{
@@ -822,23 +840,23 @@ void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
 	}
 }
 
-bool OnVIPCommand(int iSlot, const char* szContent)
+void ShowVIPMenu(int iSlot, bool bReopen)
 {
-	if(g_pPlayers->IsFakeClient(iSlot)) return false;
-	KeyValues* Group = GetGroupKV(iSlot);
-	if (!Group) {
+	if(g_pPlayers->IsFakeClient(iSlot)) return;
+	
+	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
+	if (Group.empty()) {
 		g_pUtils->PrintToChat(iSlot, g_pVIPCore->VIP_GetTranslate("NotAccess"));
-		return false;
+		return;
 	}
 
 	Menu hMenu;
 	g_pMenus->SetTitleMenu(hMenu, g_pVIPCore->VIP_GetTranslate("MenuTitle"));
 	
 	char sBuff[128];
-	FOR_EACH_VALUE(Group, pKey)
-	{
-		const char *pszParam = pKey->GetName();
-		const char *pszValue = pKey->GetString(nullptr, nullptr);
+	for (auto& [key, value] : Group) {
+		const char *pszParam = key.c_str();
+		const char *pszValue = value.c_str();
 		const char *szTrans = g_pVIPCore->VIP_GetTranslate(pszParam);
 		const char *szValue = g_pVIPCore->VIP_GetClientFeatureString(iSlot, pszParam); 
 		VIPFunctions& vip_func = g_VipFunctions[std::string(pszParam)];
@@ -858,7 +876,12 @@ bool OnVIPCommand(int iSlot, const char* szContent)
 	g_pMenus->SetBackMenu(hMenu, false);
 	g_pMenus->SetExitMenu(hMenu, true);
 	g_pMenus->SetCallback(hMenu, VIPCallback);
-	g_pMenus->DisplayPlayerMenu(hMenu, iSlot);
+	g_pMenus->DisplayPlayerMenu(hMenu, iSlot, true, bReopen);
+}
+
+bool OnVIPCommand(int iSlot, const char* szContent)
+{
+	ShowVIPMenu(iSlot, true);
 	return false;
 }
 
@@ -980,7 +1003,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.2.2";
+	return "1.2.3";
 }
 
 const char* VIP::GetDate()
