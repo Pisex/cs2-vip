@@ -60,7 +60,7 @@ jobs:
           zip -r ${{ github.workspace }}.zip addons
 
       - name: Upload archive to artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: compile
           path: ${{ github.workspace }}.zip
