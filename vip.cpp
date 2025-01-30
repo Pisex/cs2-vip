@@ -78,20 +78,24 @@ std::map<std::string, std::string> GetGroupKV(int iSlot)
         return {};
 
     std::map<std::string, std::string> vipPlayer = g_VipGroups[player.sGroup];
-	if (vipPlayer.empty())
-		return {};
+    if (vipPlayer.empty())
+        return {};
+    
+    auto it = vipPlayer.find("legacy");
+    if (it == vipPlayer.end() || it->second.empty())
+        return vipPlayer;
 
-	const char* vipGroupLegacy = vipPlayer["legacy"].c_str();
-	while(vipGroupLegacy && vipGroupLegacy[0]) {
-		auto vipLegacy = g_VipGroups[vipGroupLegacy];
-		if(!vipLegacy.empty()) {
-			vipGroupLegacy = vipLegacy["legacy"].c_str();
-			for(auto& [key, value] : vipLegacy) if(vipPlayer[key].empty()) vipPlayer[key] = value;
-		} else {
-			break;
-		}
-	}
-	g_pKVUser[iSlot] = vipPlayer;
+    const char* vipGroupLegacy = it->second.c_str();
+    while(vipGroupLegacy && vipGroupLegacy[0]) {
+        auto vipLegacy = g_VipGroups[vipGroupLegacy];
+        if(!vipLegacy.empty()) {
+            vipGroupLegacy = vipLegacy["legacy"].c_str();
+            for(auto& [key, value] : vipLegacy) if(vipPlayer[key].empty()) vipPlayer[key] = value;
+        } else {
+            break;
+        }
+    }
+    g_pKVUser[iSlot] = vipPlayer;
     return vipPlayer;
 }
 
@@ -856,6 +860,7 @@ void ShowVIPMenu(int iSlot, bool bReopen)
 	char sBuff[128];
 	for (auto& [key, value] : Group) {
 		const char *pszParam = key.c_str();
+		if(!strcmp(pszParam, "legacy")) continue;
 		const char *pszValue = value.c_str();
 		const char *szTrans = g_pVIPCore->VIP_GetTranslate(pszParam);
 		const char *szValue = g_pVIPCore->VIP_GetClientFeatureString(iSlot, pszParam); 
@@ -883,6 +888,11 @@ bool OnVIPCommand(int iSlot, const char* szContent)
 {
 	ShowVIPMenu(iSlot, true);
 	return false;
+}
+
+void OnClientCookiesLoaded(int iSlot)
+{
+	g_pVIPApi->Call_VIP_OnClientLoaded(iSlot, g_pVIPCore->VIP_IsClientVIP(iSlot));
 }
 
 void VIP::AllPluginsLoaded()
@@ -921,6 +931,9 @@ void VIP::AllPluginsLoaded()
 	g_pCookies = (ICookiesApi *)g_SMAPI->MetaFactory(COOKIES_INTERFACE, &ret, NULL);
 	if (ret == META_IFACE_FAILED)
 		g_pCookies = nullptr;
+	else {
+		g_pCookies->HookClientCookieLoaded(g_PLID, OnClientCookiesLoaded);
+	}
 
 	ISQLInterface* g_SqlInterface = (ISQLInterface *)g_SMAPI->MetaFactory(SQLMM_INTERFACE, &ret, nullptr);
 	if (ret == META_IFACE_FAILED) {
@@ -1003,7 +1016,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.2.3";
+	return "1.2.3.1";
 }
 
 const char* VIP::GetDate()
