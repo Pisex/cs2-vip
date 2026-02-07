@@ -1000,7 +1000,7 @@ CONSTRAINT pk_PlayerID PRIMARY KEY (`account_id`, `sid`) \
 			g_pVIPApi->SetReady(true);
 		}
 	});
-	g_pUtils->RegCommand(g_PLID, {"mm_vip", "sm_vip"}, {"!vip"}, {"/vip"}, OnVIPCommand);
+	g_pUtils->RegCommand(g_PLID, {"mm_vip", "sm_vip"}, {"!vip", "/vip"}, OnVIPCommand);
 	g_pUtils->HookEvent(g_PLID, "player_spawn", OnPlayerSpawn);
 	g_pUtils->HookEvent(g_PLID, "round_prestart", OnRoundPreStart);
 	g_pUtils->StartupServer(g_PLID, OnStartupServer);
