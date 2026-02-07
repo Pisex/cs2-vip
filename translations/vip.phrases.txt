@@ -20,162 +20,194 @@
 
 	"Prefix"
 	{
-		"en"	" {GREEN}[VIP]{DEFAULT}"
-		"ru"	" {GREEN}[VIP]{DEFAULT}"
+		"en"	"[ {RED}VIP {DEFAULT}] "
+		"pt-BR"	"[ {RED}VIP {DEFAULT}] "
+		"ru"	"[ {RED}VIP {DEFAULT}] "
 	}
 	"Off"
 	{
 		"en"	"OFF"
+		"pt-BR"	"OFF"
 		"ru"	"ВЫКЛ"
 	}
 	"On"
 	{
 		"en"	"ON"
+		"pt-BR"	"ON"
 		"ru"	"ВКЛ"
 	}
 	"NotAccess"
 	{
-		"en"	"You do not have access to this command"
-		"ru"	"У вас нету доступа к этой команде"
+		"en"	"{RED}You do not have access to this command!"
+		"pt-BR"	"{RED}Você não tem acesso a este comando!"
+		"ru"	"{RED}У вас нету доступа к этой команде!"
 	}
 	"MenuIsAlreadyOpen"
 	{
 		"en"	"You already have a menu open, to close the menu use !9"
+		"pt-BR"	"Você já tem um menu aberto, para fechá-lo use !9."
 		"ru"	"У вас уже открыто меню, чтобы закрыть меню используйте !9"
 	}
 	"MenuTitle"
 	{
 		"en"	"VIP MENU"
+		"pt-BR"	"MENU VIP"
 		"ru"	"ВИП МЕНЮ"
 	}
 	"WelcomePerm"
 	{
 		"en"	"Hello, %s! You are a VIP player"
+		"pt-BR"	"Olá, %s! Você é um jogador VIP."
 		"ru"	"Здравствуйте, %s! Вы являетесь VIP-игроком"
 	}
 	"Welcome"
 	{
 		"en"	"Hello, %s! You are a VIP player. Your VIP status expires %s"
+		"pt-BR"	"Olá, %s! Você é um jogador VIP. Seu status VIP expira em %s."
 		"ru"	"Здравствуйте, %s! Вы являетесь VIP-игроком. Ваш VIP статус истекает %s"
 	}
 	"VIPExpired1"
 	{
-		"en"	"Your VIP status has expired"
-		"ru"	"Срок вашего VIP-статуса истек"
+		"en"	"Your VIP status has expired!"
+		"pt-BR"	"Seu status VIP expirou!"
+		"ru"	"Срок вашего VIP-статуса истек!"
 	}
 	"VIPExpired2"
 	{
 		"en"	"To regain VIP status"
+		"pt-BR"	"Para renovar o status VIP"
 		"ru"	"Чтобы вновь приобрести VIP-статус"
 	}
 	"VIPExpired3"
 	{
 		"en"	"Contact the administrator"
+		"pt-BR"	"Entre em contato com o administrador"
 		"ru"	"Oбратитесь к администратору"
 	}
 	"AlreadyVIP"
 	{
 		"en"	"You are {GREEN}VIP {DEFAULT}already!"
+		"pt-BR"	"Você já é {GREEN}VIP {DEFAULT}!"
 		"ru"	"Вы уже являетесь {GREEN}VIP-игроком{DEFAULT}!"
 	}
 	"AlreadyReceived"
 	{
-		"en"	"Re-acquisition of {GREEN}VIP status {DEFAULT} will be available %s!"
+		"en"	"Received of {GREEN}VIP status {DEFAULT} will be available %s!"
+		"pt-BR"	"A readquisição do status {GREEN}VIP {DEFAULT} estará disponível em %s!"
 		"ru"	"Повторное получение {GREEN}VIP-статуса {DEFAULT}будет доступно %s!"
 	}
 	"ReceivedDisabled"
 	{
 		"en"	"Re-acquisition of {GREEN}VIP status {RED} is disabled!"
+		"pt-BR"	"A readquisição do status VIP {VERDE} está desativada!"
 		"ru"	"Повторное получение {GREEN}VIP-статуса {RED}запрещено!"
 	}
 	"MenuBack"
 	{
 		"en"	" {GRAY}[!7]{DEFAULT} <- Back"
+		"pt-BR"	" {GRAY}[!7]{DEFAULT} <- Voltar"
 		"ru"	" {GRAY}[!7]{DEFAULT} <- Назад"
 	}
 	"MenuNext"
 	{
 		"en"	" {GRAY}[!8]{DEFAULT} <- Next"
+		"pt-BR"	" {GRAY}[!8]{DEFAULT} <- Próximo"
 		"ru"	" {GRAY}[!8]{DEFAULT} -> Вперёд"
 	}
 	"MenuExit"
 	{
 		"en"	" {LIGHTRED}[!9]{DEFAULT} Exit"
+		"pt-BR"	" {LIGHTRED}[!9]{DEFAULT} Sair"
 		"ru"	" {LIGHTRED}[!9]{DEFAULT} Выход"
 	}
 	"YourAlive"
 	{
 		"en"	"You should be dead!"
+		"pt-BR"	"Você precisa estar morto!"
 		"ru"	"Вы должны быть мертвы!"
 	}
 	"SelectTeam"
 	{
 		"en"	"You have to be on the team!"
+		"pt-BR"	"Você precisa fazer parte de um time!"
 		"ru"	"Вы должны быть в команде!"
 	}
 	"EndRound"
 	{
 		"en"	"You can't come back at the end of the round!"
+		"pt-BR"	"Você não pode voltar no fim do round!"
 		"ru"	"Вы не можете возрадиться в конце раунда!"
 	}
 	"LimitRespawn"
 	{
 		"en"	"The limit of uses per round has been reached!"
+		"pt-BR"	"Limite de uso por round foi atingido!"
 		"ru"	"Достигнут лимит использований за раунд!"
 	}
 	"health"
 	{
 		"en"	"Health"
+		"pt-BR"	"Health"
 		"ru"	"Здоровье"
 	}
 	"armor"
 	{
 		"en"	"Armor"
+		"pt-BR"	"Armor"
 		"ru"	"Броня"
 	}
 	"helmet"
 	{
 		"en"	"Helmet"
+		"pt-BR"	"Helmet"
 		"ru"	"Шлем"
 	}
 	"money"
 	{
 		"en"	"Cash"
+		"pt-BR"	"Cash"
 		"ru"	"Деньги"
 	}
 	"defuser"
 	{
 		"en"	"Defuser"
+		"pt-BR"	"Defuser"
 		"ru"	"Дефуза"
 	}
 	"clantag"
 	{
 		"en"	"Clan Tag"
+		"pt-BR"	"Clan Tag"
 		"ru"	"Клан-Тег"
 	}
 	"respawn"
 	{
 		"en"	"Respawn"
+		"pt-BR"	"Respawn"
 		"ru"	"Респавн"
 	}
 	"smoke_color"
 	{
-		"en"	"Colored smoke"
+		"en"	"Colored Smoke"
+		"pt-BR"	"Colored Smoke"
 		"ru"	"Цветной смок"
 	}
 	"healthshot"
 	{
 		"en"	"Healthshots"
+		"pt-BR"	"Healthshots"
 		"ru"	"Шприцы"
 	}
 	"bhop"
 	{
 		"en"	"Bhop"
+		"pt-BR"	"Bhop"
 		"ru"	"Бхоп"
 	}
 	"antiflash"
 	{
 		"en"	"Anti-Flash"
+		"pt-BR"	"Anti-Flash"
 		"ru"	"Антифлеш"
 	}
 }
