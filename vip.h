@@ -13,12 +13,14 @@
 #include <functional>
 #include "utils.hpp"
 #include <utlstring.h>
-#include <KeyValues.h>
+#include <keyvalues.h>
 #include "CCSPlayerController.h"
 #include "CGameRules.h"
 #include "module.h"
 #include "include/vip.h"
 #include "include/menus.h"
+#include "include/utils.h"
+#include "include/players.h"
 #include "include/cookies.h"
 #include "include/mysql_mm.h"
 #include <map>
@@ -27,7 +29,7 @@
 #include <array>
 #include <thread>
 
-class VIP final : public ISmmPlugin, public IMetamodListener
+class VIP final : public ISmmPlugin, public IMetamodListener, public IServerListener, public IPlayerListener
 {
 public:
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late);
@@ -45,9 +47,11 @@ private:
 	const char* GetLogTag();
 
 private: // Hooks
-	void GameFrame(bool simulating, bool bFirstTick, bool bLastTick);
-    void OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid);
-	void OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reason, const char *pszName, uint64 xuid, const char *pszNetworkID );
+	void GameFrame(bool bSimulating, bool bFirstTick, bool bLastTick) override;
+    void ClientPutInServer(int iSlot) override;
+    void ClientDisconnect(int iSlot) override;
+    void MapStartHook(const char* szMap) override;
+    void OnClientAuthorized(int iSlot, uint64 iSteamID64) override;
 	int g_iLastTime;
 };
 

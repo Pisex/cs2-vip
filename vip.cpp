@@ -34,10 +34,6 @@ KeyValues* g_hKVData;
 VIPApi* g_pVIPApi = nullptr;
 IVIPApi* g_pVIPCore = nullptr;
 
-SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool, bool, bool);
-SH_DECL_HOOK4_void(IServerGameClients, ClientPutInServer, SH_NOATTRIB, 0, CPlayerSlot, char const*, int, uint64);
-SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CPlayerSlot, ENetworkDisconnectionReason, const char *, uint64, const char *);
-
 CGameEntitySystem* GameEntitySystem()
 {
 	return g_pUtils->GetCGameEntitySystem();
@@ -115,7 +111,8 @@ bool LoadVips()
 		g_pUtils->ErrorLog("[%s] Failed to load vip config 'addons/configs/vip/groups.ini'", g_PLAPI->GetLogTag());
 		return false;
 	}
-	m_iServerID = pKVVips->GetInt("server_id");
+	int iServerID = std::atoi(g_pUtils->GetServerID());
+	m_iServerID = pKVVips->GetInt("server_id", iServerID);
 	for (KeyValues* pKey = pKVVips->GetFirstSubKey(); pKey; pKey = pKey->GetNextKey())
 	{
 		const char* sGroup = pKey->GetName();
@@ -369,10 +366,6 @@ bool VIP::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late
 
 	g_SMAPI->AddListener( this, this );
 
-	SH_ADD_HOOK(IServerGameDLL, GameFrame, g_pSource2Server, SH_MEMBER(this, &VIP::GameFrame), true);
-	SH_ADD_HOOK(IServerGameClients, ClientPutInServer, g_pSource2GameClients, SH_MEMBER(this, &VIP::OnClientPutInServer), true);
-	SH_ADD_HOOK_MEMFUNC(IServerGameClients, ClientDisconnect, g_pSource2GameClients, this, &VIP::OnClientDisconnect, true);
-
 	ConVar_Register(FCVAR_GAMEDLL);
 
 	g_pVIPApi = new VIPApi();
@@ -383,10 +376,6 @@ bool VIP::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late
 
 bool VIP::Unload(char *error, size_t maxlen)
 {
-	SH_REMOVE_HOOK(IServerGameDLL, GameFrame, g_pSource2Server, SH_MEMBER(this, &VIP::GameFrame), true);
-    SH_REMOVE_HOOK(IServerGameClients, ClientPutInServer, g_pSource2GameClients, SH_MEMBER(this, &VIP::OnClientPutInServer), true);
-	SH_REMOVE_HOOK_MEMFUNC(IServerGameClients, ClientDisconnect, g_pSource2GameClients, this, &VIP::OnClientDisconnect, true);
-
 	ConVar_Unregister();
 
 	if (g_pConnection)
@@ -395,10 +384,8 @@ bool VIP::Unload(char *error, size_t maxlen)
 	return true;
 }
 
-void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, uint64 xuid)
+void VIP::ClientPutInServer(int iSlot)
 {
-	if(xuid == 0) return;
-	int iSlot = slot.Get();
 	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController) return;
 	uint32 m_steamID = pController->m_steamID();
@@ -422,7 +409,7 @@ void VIP::OnClientPutInServer(CPlayerSlot slot, char const* pszName, int type, u
 	}
 }
 
-void OnStartupServer()
+void VIP::MapStartHook(const char* szMap)
 {
 	g_pGameRules = nullptr;
 
@@ -755,7 +742,7 @@ bool VIPApi::VIP_IsValidVIPGroup(const char* szGroup)
 	return g_VipGroups[szGroup].empty()?false:true;
 }
 
-void OnClientAuthorized(int iSlot, uint64 iSteamID64)
+void VIP::OnClientAuthorized(int iSlot, uint64 iSteamID64)
 {
 	CCSPlayerController* pController = CCSPlayerController::FromSlot(iSlot);
 	if (!pController) return;
@@ -787,18 +774,34 @@ void OnClientAuthorized(int iSlot, uint64 iSteamID64)
 	});
 }
 
-void VIP::OnClientDisconnect( CPlayerSlot slot, ENetworkDisconnectionReason reason, const char *pszName, uint64 xuid, const char *pszNetworkID )
+void VIP::ClientDisconnect(int iSlot)
 {
-	if (xuid == 0)
-    	return;
-
-	g_pVIPApi->Call_VIP_OnClientDisconnect(slot.Get(), g_pVIPCore->VIP_IsClientVIP(slot.Get()));
+	g_pVIPApi->Call_VIP_OnClientDisconnect(iSlot, g_pVIPCore->VIP_IsClientVIP(iSlot));
 }
 
 void ShowVIPMenu(int iSlot, bool bReopen);
 
 void VIPApi::VIP_OpenMenu(int iSlot) {
 	ShowVIPMenu(iSlot, true);
+}
+
+void VIPToggleCallback(const char* szBack, bool bState, int iItem, int iSlot)
+{
+	VIPFunctions& vip_func = g_VipFunctions[std::string(szBack)];
+	if(vip_func.eType == SELECTABLE) return;
+
+	const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iSlot, szBack);
+	int oldStatusValue = (strlen(sCookie) == 0 || atoi(sCookie) != 0) ? 1 : 0;
+	int newStatusValue = bState ? 1 : 0;
+
+	VIP_ToggleState oldStatus = static_cast<VIP_ToggleState>(oldStatusValue);
+	VIP_ToggleState newStatus = static_cast<VIP_ToggleState>(newStatusValue);
+	bool bBlock = false;
+	if(vip_func.Togglable_callback) bBlock = vip_func.Togglable_callback(iSlot, szBack, oldStatus, newStatus);
+
+	char szStatus[16];
+	g_SMAPI->Format(szStatus, sizeof(szStatus), "%i", bBlock?oldStatusValue:newStatusValue);
+	g_pVIPCore->VIP_SetClientCookie(iSlot, szBack, szStatus);
 }
 
 void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
@@ -874,7 +877,14 @@ void ShowVIPMenu(int iSlot, bool bReopen)
 			std::string szDisplay;
 			if(vip_func.Display_callback)
 				szDisplay = vip_func.Display_callback(iSlot, pszParam);
-			g_pMenus->AddItemMenu(hMenu, pszParam, size(szDisplay)?szDisplay.c_str():sBuff);
+			if(g_pMenus->GetMenuType(iSlot) == MenuType::HUD_LAYOUT) {
+				if(vip_func.eType == SELECTABLE)
+					g_pMenus->AddItemMenu(hMenu, pszParam, size(szDisplay)?szDisplay.c_str():sBuff);
+				else
+					g_pMenus->AddToggleMenu(hMenu, pszParam, strlen(szTrans)?szTrans:pszParam, strlen(szValue), VIPToggleCallback);
+			} else {
+				g_pMenus->AddItemMenu(hMenu, pszParam, size(szDisplay)?szDisplay.c_str():sBuff);
+			}
 		}
 	}
 
@@ -899,7 +909,7 @@ void VIP::AllPluginsLoaded()
 {
 	char error[64] = { 0 };
 	int ret;
-	g_pUtils = (IUtilsApi *)g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, NULL);
+	g_pUtils = (IUtilsApi *)g_SMAPI->MetaFactory(UTILS_INTERFACE, &ret, NULL);
 	if (ret == META_IFACE_FAILED)
 	{
 		V_strncpy(error, "Missing Utils system plugin", 64);
@@ -909,7 +919,7 @@ void VIP::AllPluginsLoaded()
 		return;
 	}
 
-	g_pMenus = (IMenusApi *)g_SMAPI->MetaFactory(Menus_INTERFACE, &ret, NULL);
+	g_pMenus = (IMenusApi *)g_SMAPI->MetaFactory(MENUS_INTERFACE, &ret, NULL);
 	if (ret == META_IFACE_FAILED)
 	{
 		g_pUtils->ErrorLog("[%s] Missing Menus system plugin", g_PLAPI->GetLogTag());
@@ -943,8 +953,6 @@ void VIP::AllPluginsLoaded()
 		return;
 	}
 	g_pMysqlClient = g_SqlInterface->GetMySQLClient();
-	
-	g_pPlayers->HookOnClientAuthorized(g_PLID, OnClientAuthorized);
 
 	{
 		KeyValues* g_kvPhrases = new KeyValues("Phrases");
@@ -1003,7 +1011,8 @@ CONSTRAINT pk_PlayerID PRIMARY KEY (`account_id`, `sid`) \
 	g_pUtils->RegCommand(g_PLID, {"mm_vip", "sm_vip"}, {"!vip"}, OnVIPCommand);
 	g_pUtils->HookEvent(g_PLID, "player_spawn", OnPlayerSpawn);
 	g_pUtils->HookEvent(g_PLID, "round_prestart", OnRoundPreStart);
-	g_pUtils->StartupServer(g_PLID, OnStartupServer);
+	g_pPlayers->AddListener(g_PLID, this);
+	g_pUtils->AddServerListener(g_PLID, this);
 	LoadVips();
 	LoadVIPData();
 }
@@ -1016,7 +1025,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.2.3.1";
+	return "1.2.5";
 }
 
 const char* VIP::GetDate()
