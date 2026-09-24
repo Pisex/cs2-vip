@@ -8,7 +8,6 @@ PLUGIN_EXPOSE(VIP, g_VIP);
 IVEngineServer2* engine = nullptr;
 CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CEntitySystem* g_pEntitySystem = nullptr;
-CCSGameRules* g_pGameRules = nullptr;
 
 std::map<std::string, std::map<std::string,std::string>> g_VipGroups;
 std::map<uint32, VipPlayer> g_VipPlayer;
@@ -411,8 +410,7 @@ void VIP::ClientPutInServer(int iSlot)
 
 void VIP::MapStartHook(const char* szMap)
 {
-	g_pGameRules = nullptr;
-
+	Msg("VIP::MapStartHook\n");
 	static bool bDone = false;
 	if (!bDone)
 	{
@@ -431,11 +429,6 @@ void VIP::MapStartHook(const char* szMap)
 
 void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 {
-	if (!g_pGameRules)
-	{
-		g_pGameRules = g_pUtils->GetCCSGameRules();
-	}
-
 	if(g_iLastTime == 0) g_iLastTime = std::time(0);
 	else if(std::time(0) - g_iLastTime >= 1)
 	{
@@ -493,15 +486,12 @@ void OnPlayerSpawn(const char* szName, IGameEvent* event, bool bDontBroadcast)
 
 void OnRoundPreStart(const char* szName, IGameEvent* pEvent, bool bDontBroadcast)
 {
-	if (g_pGameRules)
-	{
-		g_bPistolRound = g_pGameRules->m_totalRoundsPlayed() == 0 || (g_pGameRules->m_bSwitchingTeamsAtRoundReset() && g_pGameRules->m_nOvertimePlaying() == 0) || g_pGameRules->m_bGameRestart();
-	}
+	g_bPistolRound = g_pUtils->GetCCSGameRules()->m_totalRoundsPlayed() == 0 || (g_pUtils->GetCCSGameRules()->m_bSwitchingTeamsAtRoundReset() && g_pUtils->GetCCSGameRules()->m_nOvertimePlaying() == 0) || g_pUtils->GetCCSGameRules()->m_bGameRestart();
 }
 
 bool VIPApi::VIP_WarmupPeriod()
 {
-	return g_pGameRules->m_bWarmupPeriod();
+	return g_pUtils->GetCCSGameRules()->m_bWarmupPeriod();
 }
 
 bool VIPApi::VIP_PistolRound()
@@ -724,7 +714,7 @@ CGameEntitySystem* VIPApi::VIP_GetEntitySystem()
 
 int VIPApi::VIP_GetTotalRounds()
 {
-	return g_pGameRules->m_totalRoundsPlayed();
+	return g_pUtils->GetCCSGameRules()->m_totalRoundsPlayed();
 }
 
 void VIPApi::VIP_RegisterFeature(const char* szFeature, VIP_ValueType eValType, VIP_FeatureType eType, ItemSelectableCallback Item_select_callback, ItemTogglableCallback Item_togglable_callback, ItemDisplayCallback Item_display_callback)
@@ -1025,7 +1015,7 @@ const char* VIP::GetLicense()
 
 const char* VIP::GetVersion()
 {
-	return "1.2.5";
+	return "1.2.5f";
 }
 
 const char* VIP::GetDate()
