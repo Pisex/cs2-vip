@@ -24,6 +24,7 @@
 #include "include/cookies.h"
 #include "include/mysql_mm.h"
 #include <map>
+#include <set>
 #include <ctime>
 #include <chrono>
 #include <array>
