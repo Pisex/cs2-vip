@@ -42,7 +42,7 @@ for sdk_target in MMSPlugin.sdk_targets:
       'source2_steam_stats.proto',
     ]
   ]
-  binary.custom = [ProtocHeadersOnlyJob(sdk_target.protoc, proto_sources, ['network_connection.pb.cc'])]
+  binary.custom = [ProtocHeadersOnlyJob(sdk_target.protoc, proto_sources, [])]
   
   binary.compiler.cxxincludes += [
     os.path.join(builder.sourcePath, 'include'),

@@ -14,6 +14,14 @@ std::map<uint32, VipPlayer> g_VipPlayer;
 std::map<std::string, VIPFunctions> g_VipFunctions;
 
 std::map<std::string, std::string> g_pKVUser[64];
+std::map<std::string, std::string> g_ClientParams[64];
+
+void ResetClientCache(int iSlot, bool bParams)
+{
+	if (iSlot < 0 || iSlot >= 64) return;
+	g_pKVUser[iSlot].clear();
+	if (bParams) g_ClientParams[iSlot].clear();
+}
 
 bool g_bPistolRound;
 int m_iServerID;
@@ -33,10 +41,6 @@ KeyValues* g_hKVData;
 VIPApi* g_pVIPApi = nullptr;
 IVIPApi* g_pVIPCore = nullptr;
 
-CGameEntitySystem* GameEntitySystem()
-{
-	return g_pUtils->GetCGameEntitySystem();
-};
 
 bool containsOnlyDigits(const std::string& str) {
 	return !str.empty() && str.find_first_not_of("0123456789") == std::string::npos;
@@ -97,23 +101,28 @@ std::map<std::string, std::string> GetGroupKV(int iSlot)
     std::map<std::string, std::string> vipPlayer = groupIt->second;
 
     auto it = vipPlayer.find("legacy");
-    if (it == vipPlayer.end() || it->second.empty())
-        return vipPlayer;
-
-    std::set<std::string> visited;
-    visited.insert(player.sGroup);
-    std::string sLegacy = it->second;
-    while (!sLegacy.empty()) {
-        if (!visited.insert(sLegacy).second)
-            break;
-        auto legacyIt = g_VipGroups.find(sLegacy);
-        if (legacyIt == g_VipGroups.end() || legacyIt->second.empty())
-            break;
-        const std::map<std::string, std::string>& vipLegacy = legacyIt->second;
-        for (auto& [key, value] : vipLegacy)
-            if (vipPlayer[key].empty()) vipPlayer[key] = value;
-        auto nextIt = vipLegacy.find("legacy");
-        sLegacy = (nextIt != vipLegacy.end()) ? nextIt->second : std::string();
+    if (it != vipPlayer.end() && !it->second.empty())
+    {
+        std::set<std::string> visited;
+        visited.insert(player.sGroup);
+        std::string sLegacy = it->second;
+        while (!sLegacy.empty()) {
+            if (!visited.insert(sLegacy).second)
+                break;
+            auto legacyIt = g_VipGroups.find(sLegacy);
+            if (legacyIt == g_VipGroups.end() || legacyIt->second.empty())
+                break;
+            const std::map<std::string, std::string>& vipLegacy = legacyIt->second;
+            for (auto& [key, value] : vipLegacy)
+                if (vipPlayer[key].empty()) vipPlayer[key] = value;
+            auto nextIt = vipLegacy.find("legacy");
+            sLegacy = (nextIt != vipLegacy.end()) ? nextIt->second : std::string();
+        }
+    }
+    for (auto& [key, value] : g_ClientParams[iSlot])
+    {
+        if (value.empty()) vipPlayer.erase(key);
+        else vipPlayer[key] = value;
     }
     g_pKVUser[iSlot] = vipPlayer;
     return vipPlayer;
@@ -428,6 +437,11 @@ bool VIP::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late
 	return true;
 }
 
+void VIP::OnPluginUnload(PluginId id)
+{
+	if (g_pVIPApi) g_pVIPApi->RemovePluginHooks(id);
+}
+
 bool VIP::Unload(char *error, size_t maxlen)
 {
 	ConVar_Unregister();
@@ -503,7 +517,7 @@ void VIP::GameFrame(bool simulating, bool bFirstTick, bool bLastTick)
 			if(player.TimeEnd < std::time(0) && player.TimeEnd != 0)
 			{
 				g_VipPlayer.erase(vipGroup);
-				g_pKVUser[i].clear();
+				ResetClientCache(i, true);
 				g_pVIPApi->Call_VIP_OnVIPClientRemoved(i, 1);
 				g_pUtils->PrintToChat(i, g_pVIPCore->VIP_GetTranslate("VIPExpired1"));
 				g_pUtils->PrintToChat(i, g_pVIPCore->VIP_GetTranslate("VIPExpired2"));
@@ -612,6 +626,7 @@ bool VIPApi::VIP_GiveClientVIP(int iSlot, int iTime, const char* szGroup, bool b
 	if (vipGroup != g_VipPlayer.end() || !engine->IsClientFullyAuthenticated(iSlot)) return false;
 
 	VipPlayer& player = g_VipPlayer[m_steamID];
+	ResetClientCache(iSlot, true);
 	player.sGroup = std::string(szGroup);
 	player.TimeEnd = iTime != 0?std::time(0)+iTime:0;
 
@@ -646,7 +661,7 @@ bool VIPApi::VIP_RemoveClientVIP(int iSlot, bool bNotify, bool bInDB)
 		return false;
 
 	g_VipPlayer.erase(vipGroup);
-	g_pKVUser[iSlot].clear();
+	ResetClientCache(iSlot, true);
 	if(bInDB && g_pConnection)
 	{
 		char szQuery[256];
@@ -684,6 +699,7 @@ bool VIPApi::VIP_SetClientVIPGroup(int iSlot, const char* szGroup, bool bInDB)
 		return false;
 
 	player.sGroup = std::string(szGroup);
+	ResetClientCache(iSlot, true);
 
 	if(bInDB && g_pConnection)
 	{
@@ -753,7 +769,10 @@ const char* VIPApi::VIP_GetClientFeatureString(int iSlot, const char* szFeature)
 		return "";
 	const char* sCookie = VIP_GetClientCookie(iSlot, szFeature);
 	if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-		return Group[szFeature].c_str();
+	{
+		auto it = g_pKVUser[iSlot].find(szFeature);
+		return it != g_pKVUser[iSlot].end() ? it->second.c_str() : "";
+	}
 	return "";
 }
 
@@ -791,6 +810,7 @@ void VIPApi::VIP_RegisterFeature(const char* szFeature, VIP_ValueType eValType, 
 	vip_func.Select_callback = Item_select_callback;
 	vip_func.Togglable_callback = Item_togglable_callback;
 	vip_func.Display_callback = Item_display_callback;
+	vip_func.bRegistered = true;
 }
 
 bool VIPApi::VIP_IsValidVIPGroup(const char* szGroup)
@@ -808,7 +828,7 @@ void VIP::OnClientAuthorized(int iSlot, uint64 iSteamID64)
 	auto vipGroup = g_VipPlayer.find(m_steamID);
 	if (vipGroup != g_VipPlayer.end())
 		g_VipPlayer.erase(vipGroup);
-	g_pKVUser[iSlot].clear();
+	ResetClientCache(iSlot, true);
 	if(!g_pConnection) return;
 	char szQuery[256];
 	g_SMAPI->Format(szQuery, sizeof(szQuery), "SELECT `group`, `expires` FROM `vip_users` WHERE `account_id` = %d AND `sid` = %d;", m_steamID, m_iServerID);
@@ -846,72 +866,417 @@ void VIP::OnClientAuthorized(int iSlot, uint64 iSteamID64)
 void VIP::ClientDisconnect(int iSlot)
 {
 	g_pVIPApi->Call_VIP_OnClientDisconnect(iSlot, g_pVIPCore->VIP_IsClientVIP(iSlot));
+	ResetClientCache(iSlot, true);
 }
 
 void ShowVIPMenu(int iSlot, bool bReopen);
 
+
+static VIPFunctions* FindFeature(const char* szFeature)
+{
+	if (!szFeature) return nullptr;
+	auto it = g_VipFunctions.find(szFeature);
+	if (it == g_VipFunctions.end() || !it->second.bRegistered) return nullptr;
+	return &it->second;
+}
+
+static bool IsMenuFeature(const std::string& sKey, const VIPFunctions* pFunc, bool bIncludeHidden)
+{
+	if (!pFunc || sKey == "legacy") return false;
+	if (pFunc->eValType == VIP_NULL) return false;
+	return bIncludeHidden || pFunc->eType != HIDE;
+}
+
+static bool IsFeatureEnabledByCookie(int iSlot, const char* szFeature)
+{
+	const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iSlot, szFeature);
+	return !sCookie || strlen(sCookie) == 0 || atoi(sCookie) != 0;
+}
+
+static VIP_ToggleState GetFeatureStatus(int iSlot, const char* szFeature)
+{
+	if (!szFeature) return NO_ACCESS;
+	std::map<std::string, std::string> Group = GetGroupKV(iSlot);
+	auto it = Group.find(szFeature);
+	if (it == Group.end() || it->second.empty()) return NO_ACCESS;
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (pFunc && pFunc->eType == DROPDOWN) return ENABLED;
+	return IsFeatureEnabledByCookie(iSlot, szFeature) ? ENABLED : DISABLED;
+}
+
+static std::string DropdownCookie(const char* szFeature)
+{
+	return std::string(szFeature) + "_opt";
+}
+
+static std::vector<VIP_FeatureOption> GetFeatureOptions(int iSlot, const char* szFeature)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (!pFunc || pFunc->eType != DROPDOWN) return {};
+	if (GetFeatureStatus(iSlot, szFeature) == NO_ACCESS) return {};
+	if (pFunc->Options_callback) return pFunc->Options_callback(iSlot, szFeature);
+
+	std::vector<VIP_FeatureOption> vecOptions;
+	std::map<std::string, std::string> Group = GetGroupKV(iSlot);
+	const std::string& sValue = Group[szFeature];
+	size_t iStart = 0;
+	while (iStart <= sValue.size())
+	{
+		size_t iEnd = sValue.find(';', iStart);
+		if (iEnd == std::string::npos) iEnd = sValue.size();
+		std::string sPart = sValue.substr(iStart, iEnd - iStart);
+		size_t b = sPart.find_first_not_of(" \t"), e = sPart.find_last_not_of(" \t");
+		sPart = b == std::string::npos ? "" : sPart.substr(b, e - b + 1);
+		if (!sPart.empty())
+		{
+			VIP_FeatureOption opt;
+			opt.sValue = sPart;
+			const char* szTrans = g_pVIPCore->VIP_GetTranslate((std::string(szFeature) + "_" + sPart).c_str());
+			opt.sName = (szTrans && szTrans[0]) ? szTrans : sPart;
+			vecOptions.push_back(std::move(opt));
+		}
+		iStart = iEnd + 1;
+	}
+	return vecOptions;
+}
+
+static int GetFeatureOption(int iSlot, const char* szFeature, const std::vector<VIP_FeatureOption>& vecOptions)
+{
+	if (vecOptions.empty()) return -1;
+	const char* szCookie = g_pVIPCore->VIP_GetClientCookie(iSlot, DropdownCookie(szFeature).c_str());
+	std::string sSaved = szCookie ? szCookie : "";
+	if (sSaved.empty())
+		sSaved = g_pVIPCore->VIP_GetClientParam(iSlot, szFeature);
+	for (int i = 0; i < (int)vecOptions.size(); i++)
+		if (vecOptions[i].sValue == sSaved) return i;
+	return 0;
+}
+
+static bool ApplyFeatureOption(int iSlot, const char* szFeature, int iOption, bool bCallback)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (!pFunc || pFunc->eType != DROPDOWN) return false;
+	std::vector<VIP_FeatureOption> vecOptions = GetFeatureOptions(iSlot, szFeature);
+	if (vecOptions.empty() || iOption < 0 || iOption >= (int)vecOptions.size()) return false;
+	int iOld = GetFeatureOption(iSlot, szFeature, vecOptions);
+	int iNew = iOption;
+	if (bCallback && pFunc->Dropdown_callback && pFunc->Dropdown_callback(iSlot, szFeature, iOld, iNew))
+		return false;
+	if (iNew < 0 || iNew >= (int)vecOptions.size() || iNew == iOld) return false;
+	g_pVIPCore->VIP_SetClientCookie(iSlot, DropdownCookie(szFeature).c_str(), vecOptions[iNew].sValue.c_str());
+	return true;
+}
+
+static bool ApplyFeatureToggle(int iSlot, const char* szFeature, bool bEnable, bool bCallback)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (!pFunc || pFunc->eType == SELECTABLE || pFunc->eType == DROPDOWN) return false;
+	if (GetFeatureStatus(iSlot, szFeature) == NO_ACCESS) return false;
+
+	bool bOld = IsFeatureEnabledByCookie(iSlot, szFeature);
+	VIP_ToggleState eOld = bOld ? ENABLED : DISABLED;
+	VIP_ToggleState eNew = bEnable ? ENABLED : DISABLED;
+	bool bBlock = false;
+	if (bCallback && pFunc->Togglable_callback)
+		bBlock = pFunc->Togglable_callback(iSlot, szFeature, eOld, eNew);
+
+	bool bResult = bBlock ? bOld : (eNew == ENABLED);
+	g_pVIPCore->VIP_SetClientCookie(iSlot, szFeature, bResult ? "1" : "0");
+	return bResult != bOld;
+}
+
+static bool PressFeature(int iSlot, const char* szFeature)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (!pFunc) return false;
+	if (GetFeatureStatus(iSlot, szFeature) == NO_ACCESS) return false;
+	if (pFunc->eType == SELECTABLE)
+	{
+		if (pFunc->Select_callback) return pFunc->Select_callback(iSlot, szFeature);
+		return false;
+	}
+	if (pFunc->eType == DROPDOWN)
+	{
+		std::vector<VIP_FeatureOption> vecOptions = GetFeatureOptions(iSlot, szFeature);
+		if (!vecOptions.empty())
+			ApplyFeatureOption(iSlot, szFeature, (GetFeatureOption(iSlot, szFeature, vecOptions) + 1) % (int)vecOptions.size(), true);
+		return false;
+	}
+	ApplyFeatureToggle(iSlot, szFeature, !IsFeatureEnabledByCookie(iSlot, szFeature), true);
+	return false;
+}
+
+static std::string GetFeatureName(const char* szFeature)
+{
+	const char* szTrans = g_pVIPCore->VIP_GetTranslate(szFeature);
+	return (szTrans && szTrans[0]) ? szTrans : szFeature;
+}
+
+static std::string BuildFeatureDisplay(int iSlot, const char* szFeature, const VIPFunctions& vip_func)
+{
+	if (vip_func.Display_callback)
+	{
+		std::string szDisplay = vip_func.Display_callback(iSlot, szFeature);
+		if (!szDisplay.empty()) return szDisplay;
+	}
+	std::string sName = GetFeatureName(szFeature);
+	if (vip_func.eType == SELECTABLE) return sName;
+	if (vip_func.eType == DROPDOWN)
+	{
+		std::vector<VIP_FeatureOption> vecOptions = GetFeatureOptions(iSlot, szFeature);
+		int iOption = GetFeatureOption(iSlot, szFeature, vecOptions);
+		return iOption >= 0 ? sName + " [" + vecOptions[iOption].sName + "]" : sName;
+	}
+
+	const char* szValue = g_pVIPCore->VIP_GetClientFeatureString(iSlot, szFeature);
+	char sBuff[128];
+	g_SMAPI->Format(sBuff, sizeof(sBuff), "%s [%s]", sName.c_str(), strlen(szValue)?vip_func.eValType == VIP_BOOL?g_pVIPCore->VIP_GetTranslate("On"):szValue:g_pVIPCore->VIP_GetTranslate("Off"));
+	return sBuff;
+}
+
+std::vector<VIP_MenuItem> VIPApi::VIP_GetClientMenuItems(int iSlot, bool bIncludeHidden)
+{
+	std::vector<VIP_MenuItem> vecItems;
+	if (iSlot < 0 || iSlot >= 64) return vecItems;
+	std::map<std::string, std::string> Group = GetGroupKV(iSlot);
+	for (auto& [key, value] : Group)
+	{
+		VIPFunctions* pFunc = FindFeature(key.c_str());
+		if (!IsMenuFeature(key, pFunc, bIncludeHidden)) continue;
+		VIP_MenuItem item;
+		item.sFeature = key;
+		item.sName = GetFeatureName(key.c_str());
+		item.sValue = value;
+		item.sDisplay = BuildFeatureDisplay(iSlot, key.c_str(), *pFunc);
+		item.eValType = pFunc->eValType;
+		item.eType = pFunc->eType;
+		item.eState = GetFeatureStatus(iSlot, key.c_str());
+		if (item.eType == DROPDOWN)
+		{
+			item.vecOptions = GetFeatureOptions(iSlot, key.c_str());
+			item.iOption = GetFeatureOption(iSlot, key.c_str(), item.vecOptions);
+		}
+		vecItems.push_back(std::move(item));
+	}
+	return vecItems;
+}
+
+std::string VIPApi::VIP_GetClientFeatureDisplay(int iSlot, const char* szFeature)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	if (!pFunc || GetFeatureStatus(iSlot, szFeature) == NO_ACCESS) return "";
+	return BuildFeatureDisplay(iSlot, szFeature, *pFunc);
+}
+
+VIP_ToggleState VIPApi::VIP_GetClientFeatureStatus(int iSlot, const char* szFeature)
+{
+	if (iSlot < 0 || iSlot >= 64) return NO_ACCESS;
+	return GetFeatureStatus(iSlot, szFeature);
+}
+
+bool VIPApi::VIP_SetClientFeatureStatus(int iSlot, const char* szFeature, VIP_ToggleState eStatus, bool bCallback)
+{
+	if (iSlot < 0 || iSlot >= 64 || eStatus == NO_ACCESS) return false;
+	return ApplyFeatureToggle(iSlot, szFeature, eStatus == ENABLED, bCallback);
+}
+
+bool VIPApi::VIP_PressClientFeature(int iSlot, const char* szFeature)
+{
+	if (iSlot < 0 || iSlot >= 64) return false;
+	return PressFeature(iSlot, szFeature);
+}
+
+std::vector<std::string> VIPApi::VIP_GetFeatures()
+{
+	std::vector<std::string> vecFeatures;
+	for (auto& [key, func] : g_VipFunctions)
+		if (func.bRegistered) vecFeatures.push_back(key);
+	return vecFeatures;
+}
+
+bool VIPApi::VIP_IsFeatureRegistered(const char* szFeature)
+{
+	return FindFeature(szFeature) != nullptr;
+}
+
+VIP_ValueType VIPApi::VIP_GetFeatureValueType(const char* szFeature)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	return pFunc ? pFunc->eValType : VIP_NULL;
+}
+
+VIP_FeatureType VIPApi::VIP_GetFeatureType(const char* szFeature)
+{
+	VIPFunctions* pFunc = FindFeature(szFeature);
+	return pFunc ? pFunc->eType : HIDE;
+}
+
+void VIPApi::VIP_UnregisterFeature(const char* szFeature)
+{
+	if (!szFeature) return;
+	g_VipFunctions.erase(szFeature);
+}
+
+std::map<std::string, std::string> VIPApi::VIP_GetClientParams(int iSlot)
+{
+	std::map<std::string, std::string> Group = GetGroupKV(iSlot);
+	Group.erase("legacy");
+	return Group;
+}
+
+std::string VIPApi::VIP_GetClientParam(int iSlot, const char* szParam)
+{
+	if (!szParam) return "";
+	std::map<std::string, std::string> Group = GetGroupKV(iSlot);
+	auto it = Group.find(szParam);
+	return it != Group.end() ? it->second : "";
+}
+
+bool VIPApi::VIP_SetClientParam(int iSlot, const char* szParam, const char* szValue)
+{
+	if (iSlot < 0 || iSlot >= 64 || !szParam || !szParam[0]) return false;
+	if (!VIP_IsClientVIP(iSlot)) return false;
+	g_ClientParams[iSlot][szParam] = szValue ? szValue : "";
+	g_pKVUser[iSlot].clear();
+	return true;
+}
+
+void VIPApi::VIP_ResetClientParams(int iSlot)
+{
+	ResetClientCache(iSlot, true);
+}
+
+std::vector<std::string> VIPApi::VIP_GetGroups()
+{
+	std::vector<std::string> vecGroups;
+	for (auto& [key, value] : g_VipGroups)
+		if (!value.empty()) vecGroups.push_back(key);
+	return vecGroups;
+}
+
+std::map<std::string, std::string> VIPApi::VIP_GetGroupParams(const char* szGroup)
+{
+	if (!szGroup) return {};
+	auto it = g_VipGroups.find(szGroup);
+	return it != g_VipGroups.end() ? it->second : std::map<std::string, std::string>();
+}
+
+void VIPApi::VIP_RegisterDropdownFeature(const char* szFeature, VIP_ValueType eValType, ItemOptionsCallback Item_options_callback, ItemDropdownCallback Item_dropdown_callback, ItemDisplayCallback Item_display_callback)
+{
+	if (!szFeature || !szFeature[0]) return;
+	VIPFunctions& vip_func = g_VipFunctions[std::string(szFeature)];
+	vip_func.eValType = eValType == VIP_NULL ? VIP_STRING : eValType;
+	vip_func.eType = DROPDOWN;
+	vip_func.Select_callback = nullptr;
+	vip_func.Togglable_callback = nullptr;
+	vip_func.Display_callback = Item_display_callback;
+	vip_func.Options_callback = Item_options_callback;
+	vip_func.Dropdown_callback = Item_dropdown_callback;
+	vip_func.bRegistered = true;
+}
+
+std::vector<VIP_FeatureOption> VIPApi::VIP_GetClientFeatureOptions(int iSlot, const char* szFeature)
+{
+	if (iSlot < 0 || iSlot >= 64) return {};
+	return GetFeatureOptions(iSlot, szFeature);
+}
+
+int VIPApi::VIP_GetClientFeatureOption(int iSlot, const char* szFeature)
+{
+	if (iSlot < 0 || iSlot >= 64) return -1;
+	return GetFeatureOption(iSlot, szFeature, GetFeatureOptions(iSlot, szFeature));
+}
+
+std::string VIPApi::VIP_GetClientFeatureOptionValue(int iSlot, const char* szFeature)
+{
+	if (iSlot < 0 || iSlot >= 64) return "";
+	std::vector<VIP_FeatureOption> vecOptions = GetFeatureOptions(iSlot, szFeature);
+	int iOption = GetFeatureOption(iSlot, szFeature, vecOptions);
+	return iOption >= 0 ? vecOptions[iOption].sValue : "";
+}
+
+bool VIPApi::VIP_SetClientFeatureOption(int iSlot, const char* szFeature, int iOption, bool bCallback)
+{
+	if (iSlot < 0 || iSlot >= 64) return false;
+	return ApplyFeatureOption(iSlot, szFeature, iOption, bCallback);
+}
+
+static void RequestVIPMenu(int iSlot)
+{
+	if (iSlot < 0 || iSlot >= 64) return;
+	if (g_pPlayers->IsFakeClient(iSlot)) return;
+	if (g_pVIPApi->Call_VIP_OnMenuOpen(iSlot)) return;
+	ShowVIPMenu(iSlot, true);
+}
+
 void VIPApi::VIP_OpenMenu(int iSlot) {
+	RequestVIPMenu(iSlot);
+}
+
+void VIPApi::VIP_OpenDefaultMenu(int iSlot) {
+	if (iSlot < 0 || iSlot >= 64) return;
 	ShowVIPMenu(iSlot, true);
 }
 
 void VIPToggleCallback(const char* szBack, bool bState, int iItem, int iSlot)
 {
-	VIPFunctions& vip_func = g_VipFunctions[std::string(szBack)];
-	if(vip_func.eType == SELECTABLE) return;
+	ApplyFeatureToggle(iSlot, szBack, bState, true);
+}
 
-	const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iSlot, szBack);
-	int oldStatusValue = (strlen(sCookie) == 0 || atoi(sCookie) != 0) ? 1 : 0;
-	int newStatusValue = bState ? 1 : 0;
+void VIPSelectCallback(const char* szBack, const char* szOptionBack, int iOption, int iItem, int iSlot)
+{
+	ApplyFeatureOption(iSlot, szBack, iOption, true);
+	if (g_pVIPCore->VIP_GetClientFeatureOption(iSlot, szBack) == iOption) return;
+	g_pUtils->NextFrame([iSlot]() {
+		if (g_pMenus->IsMenuOpen(iSlot)) ShowVIPMenu(iSlot, false);
+	});
+}
 
-	VIP_ToggleState oldStatus = static_cast<VIP_ToggleState>(oldStatusValue);
-	VIP_ToggleState newStatus = static_cast<VIP_ToggleState>(newStatusValue);
-	bool bBlock = false;
-	if(vip_func.Togglable_callback) bBlock = vip_func.Togglable_callback(iSlot, szBack, oldStatus, newStatus);
+static void ShowVIPDropdownMenu(int iSlot, const std::string& sFeature)
+{
+	std::vector<VIP_FeatureOption> vecOptions = GetFeatureOptions(iSlot, sFeature.c_str());
+	if (vecOptions.empty()) { ShowVIPMenu(iSlot, false); return; }
+	int iSel = GetFeatureOption(iSlot, sFeature.c_str(), vecOptions);
 
-	char szStatus[16];
-	g_SMAPI->Format(szStatus, sizeof(szStatus), "%i", bBlock?oldStatusValue:newStatusValue);
-	g_pVIPCore->VIP_SetClientCookie(iSlot, szBack, szStatus);
+	Menu hMenu;
+	g_pMenus->SetTitleMenu(hMenu, GetFeatureName(sFeature.c_str()).c_str());
+	for (int i = 0; i < (int)vecOptions.size(); i++)
+	{
+		std::string sText = vecOptions[i].sName;
+		if (i == iSel) sText += " [+]";
+		g_pMenus->AddItemMenu(hMenu, std::to_string(i).c_str(), sText.c_str(), i == iSel ? ITEM_DISABLED : ITEM_DEFAULT);
+	}
+	g_pMenus->SetBackMenu(hMenu, true);
+	g_pMenus->SetExitMenu(hMenu, true);
+	g_pMenus->SetCallback(hMenu, [sFeature](const char* szBack, const char* szFront, int iItem, int iSlot) {
+		if (iItem < 7)
+		{
+			ApplyFeatureOption(iSlot, sFeature.c_str(), atoi(szBack), true);
+			ShowVIPDropdownMenu(iSlot, sFeature);
+		}
+		else if (iItem == 7) ShowVIPMenu(iSlot, true);
+	});
+	g_pMenus->DisplayPlayerMenu(hMenu, iSlot, true, true);
 }
 
 void VIPCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
 {
 	if(iItem < 7)
 	{
-		const char* sCookie = g_pVIPCore->VIP_GetClientCookie(iSlot, szBack);
-		VIPFunctions& vip_func = g_VipFunctions[std::string(szBack)];
-		if(vip_func.eType != SELECTABLE)
+		VIPFunctions* pFunc = FindFeature(szBack);
+		if (!pFunc) return;
+		if(pFunc->eType == DROPDOWN)
+			ShowVIPDropdownMenu(iSlot, szBack);
+		else if(pFunc->eType != SELECTABLE)
 		{
-			int oldStatusValue;
-			int newStatusValue;
-			if(strlen(sCookie) == 0 || atoi(sCookie) != 0)
-			{
-				oldStatusValue = 1;
-				newStatusValue = 0;
-			}
-			else
-			{
-				oldStatusValue = 0;
-				newStatusValue = 1;
-			}
-			VIP_ToggleState oldStatus = static_cast<VIP_ToggleState>(oldStatusValue);
-			VIP_ToggleState newStatus = static_cast<VIP_ToggleState>(newStatusValue);
-			bool bBlock = false;
-			if(vip_func.Togglable_callback) bBlock = vip_func.Togglable_callback(iSlot, szBack, oldStatus, newStatus);
-			char szStatus[16];
-			g_SMAPI->Format(szStatus, sizeof(szStatus), "%i", bBlock?oldStatusValue:newStatus);
-			g_pVIPCore->VIP_SetClientCookie(iSlot, szBack, szStatus);
+			PressFeature(iSlot, szBack);
 			ShowVIPMenu(iSlot, false);
 		}
-		else
+		else if(PressFeature(iSlot, szBack))
 		{
-			bool bClose = false;
-			if(vip_func.Select_callback) bClose = vip_func.Select_callback(iSlot, szBack);
-			if(bClose)
-			{
-				g_pUtils->NextFrame([iSlot](){
-					g_pMenus->ClosePlayerMenu(iSlot);
-				});
-			}
+			g_pUtils->NextFrame([iSlot](){
+				g_pMenus->ClosePlayerMenu(iSlot);
+			});
 		}
 	}
 }
@@ -920,41 +1285,27 @@ void ShowVIPMenu(int iSlot, bool bReopen)
 {
 	if(g_pPlayers->IsFakeClient(iSlot)) return;
 	
-	std::map<std::string,std::string> Group = GetGroupKV(iSlot);
-	if (Group.empty()) {
+	std::vector<VIP_MenuItem> vecItems = g_pVIPCore->VIP_GetClientMenuItems(iSlot, false);
+	if (vecItems.empty() && !g_pVIPCore->VIP_IsClientVIP(iSlot)) {
 		g_pUtils->PrintToChat(iSlot, g_pVIPCore->VIP_GetTranslate("NotAccess"));
 		return;
 	}
 
 	Menu hMenu;
 	g_pMenus->SetTitleMenu(hMenu, g_pVIPCore->VIP_GetTranslate("MenuTitle"));
-	
-	char sBuff[128];
-	for (auto& [key, value] : Group) {
-		const char *pszParam = key.c_str();
-		if(!strcmp(pszParam, "legacy")) continue;
-		const char *pszValue = value.c_str();
-		const char *szTrans = g_pVIPCore->VIP_GetTranslate(pszParam);
-		const char *szValue = g_pVIPCore->VIP_GetClientFeatureString(iSlot, pszParam); 
-		VIPFunctions& vip_func = g_VipFunctions[std::string(pszParam)];
-		if(vip_func.eValType != VIP_NULL && vip_func.eType != HIDE)
+
+	bool bHud = g_pMenus->GetMenuType(iSlot) == MenuType::HUD_LAYOUT;
+	for (auto& item : vecItems) {
+		if(bHud && item.eType == DROPDOWN && !item.vecOptions.empty())
 		{
-			if(vip_func.eType == SELECTABLE)
-				g_SMAPI->Format(sBuff, sizeof(sBuff), "%s", strlen(szTrans)?szTrans:pszParam);
-			else
-				g_SMAPI->Format(sBuff, sizeof(sBuff), "%s [%s]", strlen(szTrans)?szTrans:pszParam, strlen(szValue)?vip_func.eValType == VIP_BOOL?g_pVIPCore->VIP_GetTranslate("On"):szValue:g_pVIPCore->VIP_GetTranslate("Off"));
-			std::string szDisplay;
-			if(vip_func.Display_callback)
-				szDisplay = vip_func.Display_callback(iSlot, pszParam);
-			if(g_pMenus->GetMenuType(iSlot) == MenuType::HUD_LAYOUT) {
-				if(vip_func.eType == SELECTABLE)
-					g_pMenus->AddItemMenu(hMenu, pszParam, size(szDisplay)?szDisplay.c_str():sBuff);
-				else
-					g_pMenus->AddToggleMenu(hMenu, pszParam, strlen(szTrans)?szTrans:pszParam, strlen(szValue), VIPToggleCallback);
-			} else {
-				g_pMenus->AddItemMenu(hMenu, pszParam, size(szDisplay)?szDisplay.c_str():sBuff);
-			}
+			ItemRef hItem = g_pMenus->AddSelectMenu(hMenu, item.sFeature.c_str(), item.sName.c_str(), item.iOption < 0 ? 0 : item.iOption, VIPSelectCallback);
+			for (auto& opt : item.vecOptions)
+				g_pMenus->AddSelectOption(hItem, opt.sValue.c_str(), opt.sName.c_str());
 		}
+		else if(bHud && item.eType == TOGGLABLE)
+			g_pMenus->AddToggleMenu(hMenu, item.sFeature.c_str(), item.sName.c_str(), item.eState == ENABLED, VIPToggleCallback);
+		else
+			g_pMenus->AddItemMenu(hMenu, item.sFeature.c_str(), item.sDisplay.c_str());
 	}
 
 	g_pMenus->SetBackMenu(hMenu, false);
@@ -965,7 +1316,7 @@ void ShowVIPMenu(int iSlot, bool bReopen)
 
 bool OnVIPCommand(int iSlot, const char* szContent)
 {
-	ShowVIPMenu(iSlot, true);
+	RequestVIPMenu(iSlot);
 	return false;
 }
 
